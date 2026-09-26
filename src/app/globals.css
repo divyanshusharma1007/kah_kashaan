@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+:root {
+  --background: #050505;
+  --foreground: #f8e3ae;
+  --brand-black: #050505;
+  --brand-ink: #0b0b0d;
+  --brand-surface: rgba(18, 18, 18, 0.82);
+  --brand-gold-50: #fff7dc;
+  --brand-gold-100: #f8e3ae;
+  --brand-gold-200: #f3d78b;
+  --brand-gold-300: #d8b15d;
+  --brand-gold-400: #c89c47;
+  --brand-gold-500: #b6792d;
+  --brand-gold-600: #87571a;
+  --brand-gold-700: #58350f;
+  --brand-line: rgba(218, 178, 94, 0.6);
+  --brand-glow: rgba(219, 182, 93, 0.2);
+  --brand-shadow: rgba(0, 0, 0, 0.52);
+  --font-display: "Cormorant Garamond", "Georgia", serif;
+  --font-body: "Inter", "Segoe UI", sans-serif;
+  --font-script: "Great Vibes", "Segoe Script", cursive;
+}
+
+@theme inline {
+  --color-background: #050505;
+  --color-foreground: #f8e3ae;
+  --color-brand-text-primary: #fff5d9;
+  --color-brand-text-secondary: #d6c2a6;
+  --color-brand-gold-50: #fff7dc;
+  --color-brand-gold-100: #f8e3ae;
+  --color-brand-gold-200: #f3d78b;
+  --color-brand-gold-300: #d8b15d;
+  --color-brand-gold-400: #c89c47;
+  --color-brand-gold-500: #b6792d;
+  --color-brand-gold-600: #87571a;
+  --color-brand-gold-700: #58350f;
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
+  --font-script: var(--font-script);
+}
+
+html {
+  background: #050505;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 25%, rgba(217, 176, 94, 0.1), transparent 18%),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.02), transparent 55%),
+    linear-gradient(180deg, #040404 0%, #090909 100%);
+  color: var(--foreground);
+  font-family: var(--font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
