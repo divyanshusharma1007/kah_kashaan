@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Cormorant_Garamond, Great_Vibes } from "next/font/google";
 import "./globals.css";
 
@@ -15,11 +16,12 @@ const greatVibes = Great_Vibes({
 });
 
 export const metadata: Metadata = {
-  title: "Kuhkashaan | The Store of Star's",
-  description: "Luxury e-commerce brand foundation inspired by the Kuhkashaan gold-and-jet logo aesthetic.",
+  title: "Kah-Kashaan | Event Culture & Community",
+  description:
+    "Kah-Kashaan is a literary and cultural event platform for mentorship, workshops, open mic, and community gatherings.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
