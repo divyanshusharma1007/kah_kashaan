@@ -33,7 +33,7 @@ export type CommunityMetric = {
 };
 
 export async function getHomePageData() {
-  const response = await fetch("http://localhost:3000/api/home", {
+  const response = await fetch("https://kah-kashaan.onrender.com/api/home", {
     cache: "no-store",                                                                                                                                            
   });
 
