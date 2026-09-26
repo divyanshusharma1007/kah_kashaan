@@ -1,3 +1,5 @@
+import { getHomePageDataFromApi } from "@/services/home-service";
+
 export type NavItem = {
   label: string;
   href: string;
@@ -33,15 +35,7 @@ export type CommunityMetric = {
 };
 
 export async function getHomePageData() {
-  const response = await fetch("https://kah-kashaan.onrender.com/api/home", {
-    cache: "no-store",                                                                                                                                            
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch home page data from the API");
-  }
-
-  const data = await response.json();
+  const data = await getHomePageDataFromApi();
 
   return {
     navItems: data.navItems as NavItem[],
