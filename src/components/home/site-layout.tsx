@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { SiteHeader } from "@/components/home/site-header";
+import { SiteFooter } from "@/components/home/site-footer";
 import type { NavItem } from "@/data/home-page-data";
 
 type SiteLayoutProps = {
@@ -18,6 +19,7 @@ export function SiteLayout({ navItems, logo, children }: SiteLayoutProps) {
       <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-28 sm:px-6 lg:px-8">
         <SiteHeader navItems={navItems} logo={logo} />
         {children}
+        <SiteFooter />
       </div>
     </main>
   );
