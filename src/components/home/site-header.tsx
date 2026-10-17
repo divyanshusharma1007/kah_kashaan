@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useAuth } from "@/components/auth/auth-context";
 import type { NavItem } from "@/data/home-page-data";
 
 type SiteHeaderProps = {
@@ -34,6 +35,9 @@ function getNavHref(item: NavItem) {
 
 export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const accountHref = user ? "/dashboard" : "/login";
+  const accountLabel = user ? "Dashboard" : "Log in";
 
   return (
     <header className="fixed top-4 left-4 right-4 z-50 mx-auto max-w-7xl rounded-2xl border border-[#d9af57]/30 bg-[#101010]/90 px-5 py-3 shadow-[0_0_30px_rgba(217,175,87,0.1)] backdrop-blur-xl md:rounded-full">
@@ -70,8 +74,16 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
           ))}
         </div>
 
-        {/* Desktop Action Button */}
-        <div className="hidden md:block">
+        {/* Desktop account and event actions */}
+        <div className="hidden items-center gap-3 md:flex">
+          <Link href={accountHref} className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#e7d7aa] transition hover:text-[#f9e8a0]">
+            {accountLabel}
+          </Link>
+          {!user && (
+            <Link href="/signup" className="rounded-full border border-[#d9af57]/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#f0ddab] transition hover:bg-[#d9af57]/10">
+              Sign up
+            </Link>
+          )}
           <Link
             href="/reserve"
             className="inline-block rounded-full border border-[#d9af57] bg-[#d9af57] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#111111] transition hover:bg-[#f3d98c]"
@@ -134,6 +146,22 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
                 {item.label}
               </Link>
             ))}
+            <Link
+              href={accountHref}
+              onClick={() => setMobileMenuOpen(false)}
+              className="py-2 transition hover:text-[#f9e8a0]"
+            >
+              {accountLabel}
+            </Link>
+            {!user && (
+              <Link
+                href="/signup"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 transition hover:text-[#f9e8a0]"
+              >
+                Sign up as an artist
+              </Link>
+            )}
             <div className="pt-2">
               <Link
                 href="/reserve"

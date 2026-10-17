@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
+import { useAuth } from "@/components/auth/auth-context";
 
 type RegistrationFormProps = {
   eventNames: string[];
@@ -8,23 +11,39 @@ type RegistrationFormProps = {
 };
 
 export function RegistrationForm({ eventNames, selectedEvent }: RegistrationFormProps) {
-  const [previewed, setPreviewed] = useState(false);
+  const router = useRouter();
+  const { registerForEvent, storageError } = useAuth();
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const defaultEvent = eventNames.includes(selectedEvent ?? "") ? selectedEvent : "";
 
-  function preventSubmission(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-  }
-
-  function handlePreview() {
     if (!formRef.current?.reportValidity()) return;
-    setPreviewed(true);
+    setError("");
+    setSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+    try {
+      await registerForEvent({
+        name: String(formData.get("name") ?? ""),
+        email: String(formData.get("email") ?? ""),
+        phone: String(formData.get("phone") ?? ""),
+        eventName: String(formData.get("event") ?? ""),
+        password: String(formData.get("password") ?? ""),
+      });
+      router.push("/dashboard");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save your registration.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <form
       ref={formRef}
-      onSubmit={preventSubmission}
+      onSubmit={handleSubmit}
       className="rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-5 sm:p-8"
     >
       <div className="grid gap-5 sm:grid-cols-2">
@@ -89,24 +108,42 @@ export function RegistrationForm({ eventNames, selectedEvent }: RegistrationForm
             ))}
           </select>
         </div>
+        <div className="sm:col-span-2">
+          <label htmlFor="registration-password" className="text-xs uppercase tracking-[0.16em] text-[#e7d7aa]">
+            Create a password <span aria-hidden="true" className="text-[#d9af57]">*</span>
+          </label>
+          <input
+            autoComplete="new-password"
+            className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base text-[#fff5d9] outline-none transition placeholder:text-[#81765f] focus:border-[#d9af57]"
+            id="registration-password"
+            minLength={8}
+            name="password"
+            placeholder="At least 8 characters"
+            required
+            type="password"
+          />
+          <p className="mt-2 text-xs text-[#a99b7e]">
+            This registers you as an artist and signs you in after your event registration.
+            Already registered? <Link className="text-[#f0ddab] underline underline-offset-2" href="/login">Log in</Link> with your existing password.
+          </p>
+        </div>
       </div>
 
       <p className="mt-5 text-xs leading-5 text-[#a99b7e]">
-        All fields are required. This is a UI preview only; submitting does not send or save your registration.
+        Prototype only: account and registration details are saved in this browser and are not sent to a server.
       </p>
-      <button
-        onClick={handlePreview}
-        className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto"
-        type="button"
-      >
-        Preview registration
-      </button>
-
-      {previewed && (
-        <p aria-live="polite" className="mt-4 rounded-xl border border-[#d9af57]/20 bg-[#17140d] p-4 text-sm leading-6 text-[#f0ddab]">
-          Your required fields are complete. This preview did not submit or store your registration.
+      {(error || storageError) && (
+        <p aria-live="polite" className="mt-4 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">
+          {error || storageError}
         </p>
       )}
+      <button
+        className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto"
+        disabled={submitting}
+        type="submit"
+      >
+        {submitting ? "Registering..." : "Register as an artist"}
+      </button>
     </form>
   );
 }

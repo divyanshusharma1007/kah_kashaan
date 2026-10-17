@@ -21,8 +21,8 @@ export default async function ReservePage({
               Save your seat
             </h1>
             <p className="mt-4 text-sm leading-7 text-[#d8c8a2] sm:text-base">
-              Choose the gathering you would like to attend and enter your contact details.
-              This is currently a form preview; registrations are not sent or stored yet.
+              Choose a gathering and create your artist account as you register. Your registration
+              will appear in your artist dashboard on this browser.
             </p>
           </div>
           <RegistrationForm eventNames={eventNames} selectedEvent={selectedEvent} />

@@ -18,7 +18,12 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Account and event-registration demo
+
+- Artist accounts can be created at `/signup` or while registering for an event at `/reserve`.
+- Sign in at `/login`; `/dashboard` displays the signed-in artist's registrations.
+- The login page includes a one-click demo admin dashboard for previewing all registrations.
+- Demo accounts and registrations are stored in browser local storage. This prototype does not provide real authentication, secure admin access, or shared/server-side persistence; connect a trusted backend before using it with real users.
 
 ## Learn More
 
