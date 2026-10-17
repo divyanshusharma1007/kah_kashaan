@@ -23,6 +23,8 @@ type UserDocument = {
   provider?: "google";
   googleId?: string;
   createdAt?: Date;
+  emailVerified?: boolean;
+  emailVerifiedAt?: Date;
 };
 
 const CALLBACK_PATH = "/api/auth/google/callback";
@@ -191,6 +193,8 @@ export async function GET(request: NextRequest) {
         provider: "google",
         googleId: claims.sub,
         createdAt: new Date(),
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
       });
       logger.info("signup_succeeded", { intent });
       const sessionUser: SessionUser = { name, email, role: "artist", provider: "google" };
@@ -216,6 +220,10 @@ export async function GET(request: NextRequest) {
       logger.info("login_rejected_account_not_found", { intent });
       return response(authError(request, "account_not_found", intent));
     }
+    await users.updateOne(
+      { email, emailVerified: { $ne: true } },
+      { $set: { emailVerified: true, emailVerifiedAt: new Date() } },
+    );
     if (!isUserRole(user.role)) {
       logger.info("login_rejected_invalid_role", { intent });
       return response(authError(request, "invalid_role", intent));

@@ -20,15 +20,19 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 ## Account and event-registration demo
 
-- Artist accounts can be created at `/signup` or while registering for an event at `/reserve`.
+- Artist accounts can be created at `/signup`. The `/reserve` form is a separate browser-only prototype for event registrations and does not create a server account.
 - Sign in at `/login`; password credentials and Google accounts are checked against the MongoDB `users` collection by email. Unknown Google emails are redirected to signup rather than being created during login.
-- Email/password signup and Google signup create MongoDB `users` entries with the `artist` role and save the artist's name and email. After Google consent, the account is created automatically and the user is signed in to the dashboard. Account signup does not request or store a phone number; Google OAuth provides the verified email and account name, not a phone number. Set an existing user's `role` to `admin` or `artist`; `/dashboard` displays the matching view after server verification.
+- Email/password signup creates a pending MongoDB `users` entry and sends a single-use email verification link that expires after 24 hours. Clicking the link verifies the address and redirects to `/login`; the user can then sign in. Unverified accounts cannot log in. Google signup relies on Google's verified email claim and signs the user in immediately. Account signup does not request or store a phone number. Set an existing user's `role` to `admin` or `artist`; `/dashboard` displays the matching view after server verification.
 - Passwords are stored as salted PBKDF2 hashes; account sessions use signed, HTTP-only cookies. Event registration data and the separate demo admin preview still use browser local storage.
 - The login page includes a one-click demo admin dashboard for previewing all registrations.
 
 ### Google sign-in configuration
 
 Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and a random `AUTH_SECRET` of at least 32 characters in the server environment. Add the exact `GOOGLE_REDIRECT_URI` value to the OAuth client's authorized redirect URIs in Google Cloud Console. MongoDB must be configured through `MONGODB_URI` or `MONGODB_PASSWORD`; set `MONGODB_DB` if the connection URI does not name the database. The selected database must have (or allow creation of) a `users` collection with `email` and `role` fields. New accounts save `email`, `emailNormalized`, `name`, and `role`; Google accounts also save `provider` and `googleId`, while password accounts store salted password hashes. Existing `artist` and `admin` roles are honored at login.
+
+### Email verification configuration
+
+In development (`NODE_ENV=development`), email/password signup writes the verification link to the server console instead of sending an email. Open that link to verify the account; `APP_URL` can point to the local app and defaults to `http://localhost:3000`. Outside development, verification messages are sent through the Resend API. Configure `APP_URL` as the absolute public site URL (HTTPS outside localhost), `RESEND_API_KEY` with a Resend API key, and `EMAIL_FROM` with a sender address authorized for your Resend account. Pending users can submit the signup form again to resend the link (once per minute). Do not enable password signup in a deployed environment until these mail settings and the sender domain are configured.
 
 The demo admin button is not a protected admin sign-in. Only use Google accounts and database roles for actual admin access; protect any future admin APIs with the verified server-side session as well.
 

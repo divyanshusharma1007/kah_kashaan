@@ -18,11 +18,24 @@ const authErrorMessages: Record<string, string> = {
   invalid_state: "Google sign-in could not be verified. Please try again.",
 };
 
-export function AuthForm({ mode, authError }: { mode: "login" | "signup"; authError?: string }) {
+export function AuthForm({
+  mode,
+  authError,
+  verificationError,
+  verified = false,
+}: {
+  mode: "login" | "signup";
+  authError?: string;
+  verificationError?: string;
+  verified?: boolean;
+}) {
   const router = useRouter();
   const { enterDemoAdmin, storageError, sessionError, refreshSession } = useAuth();
   const [error, setError] = useState(() => authErrorMessages[authError ?? ""] ?? "");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupMessage, setSignupMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (authError) {
@@ -58,6 +71,15 @@ export function AuthForm({ mode, authError }: { mode: "login" | "signup"; authEr
             ? result.error
             : "Could not complete your request.";
         throw new Error(message);
+      }
+      if (mode === "signup") {
+        setSignupEmail(email.trim());
+        setSignupMessage(
+          result && typeof result === "object" && "message" in result && typeof result.message === "string"
+            ? result.message
+            : "Check your email for a verification link.",
+        );
+        return;
       }
       await refreshSession();
       router.replace("/dashboard");
@@ -139,6 +161,32 @@ export function AuthForm({ mode, authError }: { mode: "login" | "signup"; authEr
               ? "Sign up as an artist to register for events and keep track of your bookings."
               : "Log in to continue to your dashboard and see your event registrations."}
           </p>
+          {mode === "login" && verified && (
+            <p className="mt-5 rounded-xl border border-emerald-400/30 bg-emerald-950/30 p-3 text-sm text-emerald-200" role="status">
+              Your email is verified. You can now sign in.
+            </p>
+          )}
+          {mode === "login" && verificationError && (
+            <p className="mt-5 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">
+              {verificationError === "unavailable"
+                ? "Email verification is temporarily unavailable. Please try the link again."
+                : "This verification link is invalid, expired, or already used. Sign up again to request a new link."}
+            </p>
+          )}
+          {signupEmail && mode === "signup" && (
+            <div className="mt-7 rounded-2xl border border-[#d9af57]/25 bg-[#171510] p-5 text-sm leading-6 text-[#e7d7aa]" role="status">
+              <h2 className="font-semibold text-[#fff5d9]">Check your email</h2>
+              <p className="mt-2">
+                {signupMessage}{" "}
+                {process.env.NODE_ENV !== "development" && <>We sent it to <strong className="break-all">{signupEmail}</strong>.{" "}</>}
+                Open it to verify your address and sign in. The link expires in 24 hours.
+              </p>
+              <p className="mt-3">
+                Didn&apos;t get the email? Submit again to resend it. Already verified?{" "}
+                <Link className="font-semibold text-[#d9af57] underline underline-offset-2" href="/login">Log in</Link>.
+              </p>
+            </div>
+          )}
           {(mode === "login" || mode === "signup") && (
             <>
               <form action={mode === "signup" ? "/api/auth/google/signup" : "/api/auth/google?intent=login"} className="mt-6" method="get">
@@ -168,14 +216,34 @@ export function AuthForm({ mode, authError }: { mode: "login" | "signup"; authEr
             </div>
             <div>
               <label className={labelClass} htmlFor="auth-password">Password</label>
-              <input autoComplete={mode === "signup" ? "new-password" : "current-password"} className={inputClass} id="auth-password" minLength={8} name="password" placeholder={mode === "signup" ? "At least 8 characters" : "Enter your password"} required type="password" />
+              <div className="relative">
+                <input autoComplete={mode === "signup" ? "new-password" : "current-password"} className={`${inputClass} pr-12`} id="auth-password" minLength={8} name="password" placeholder={mode === "signup" ? "At least 8 characters" : "Enter your password"} required type={showPassword ? "text" : "password"} />
+                <button
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2 text-[#c9bea2] transition hover:text-[#d9af57] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d9af57]"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  type="button"
+                >
+                  {showPassword ? (
+                    <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
+                      <path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.2A10.8 10.8 0 0112 5c5 0 8.5 4.5 9.5 7-.4 1-1.3 2.3-2.6 3.5M6.2 6.2C3.9 7.7 2.8 9.7 2.5 12c.5 1.2 1.4 2.5 2.8 3.6A10.6 10.6 0 0012 19c1 0 2-.2 2.9-.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+                    </svg>
+                  ) : (
+                    <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
+                      <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.7" />
+                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {mode === "signup" && <p className="mt-2 text-xs text-[#a99b7e]">Use at least 8 characters.</p>}
             </div>
             {error && <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{error}</p>}
             {storageError && <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{storageError}</p>}
             {sessionError && <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{sessionError}</p>}
             <button className="min-h-12 w-full rounded-xl bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.13em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60" disabled={busy} type="submit">
-              {busy ? "Please wait..." : mode === "signup" ? "Create artist account" : "Log in to your account"}
+              {busy ? "Please wait..." : mode === "signup" ? signupEmail ? "Resend verification email" : "Create artist account" : "Log in to your account"}
             </button>
           </form>
           {mode === "login" && (

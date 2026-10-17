@@ -14,6 +14,7 @@ type UserDocument = {
   role?: unknown;
   passwordSalt?: string;
   passwordHash?: string;
+  emailVerified?: boolean;
 };
 
 const EMAIL_COLLATION = { locale: "en", strength: 2 } as const;
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
       { email },
       {
         collation: EMAIL_COLLATION,
-        projection: { email: 1, name: 1, role: 1, passwordSalt: 1, passwordHash: 1 },
+        projection: { email: 1, name: 1, role: 1, passwordSalt: 1, passwordHash: 1, emailVerified: 1 },
       },
     );
 
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
       !(await verifyPassword(password, user.passwordSalt, user.passwordHash))
     ) {
       return jsonResponse({ error: "Email or password is incorrect. Use Google if this account was created with Google." }, 401);
+    }
+    if (user.emailVerified === false) {
+      return jsonResponse({ error: "Please verify your email using the link we sent before logging in." }, 403);
     }
 
     const session = createSessionToken({

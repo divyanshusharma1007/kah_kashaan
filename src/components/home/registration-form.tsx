@@ -123,7 +123,9 @@ export function RegistrationForm({ eventNames, selectedEvent }: RegistrationForm
             type="password"
           />
           <p className="mt-2 text-xs text-[#a99b7e]">
-            This registers you as an artist and signs you in after your event registration.
+            This prototype stores the event registration only in this browser. Create a verified account at{" "}
+            <Link className="text-[#f0ddab] underline underline-offset-2" href="/signup">sign up</Link>{" "}
+            to use a persistent artist dashboard.
             Already registered? <Link className="text-[#f0ddab] underline underline-offset-2" href="/login">Log in</Link> with your existing password.
           </p>
         </div>

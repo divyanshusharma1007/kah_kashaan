@@ -1,12 +1,10 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createSessionToken,
   hashPassword,
   safelyEqual,
-  SESSION_COOKIE_NAME,
-  SESSION_MAX_AGE_SECONDS,
 } from "@/services/auth-session";
+import { sendVerificationEmail } from "@/services/email-verification";
 import { getMongoClient } from "@/services/mongodb";
 
 type UserDocument = {
@@ -18,9 +16,15 @@ type UserDocument = {
   passwordHash?: string;
   provider?: "password";
   createdAt?: Date;
+  emailVerified?: boolean;
+  emailVerificationTokenHash?: string;
+  emailVerificationExpiresAt?: Date;
+  emailVerificationSentAt?: Date;
 };
 
 const EMAIL_COLLATION = { locale: "en", strength: 2 } as const;
+const VERIFICATION_TOKEN_AGE_MS = 24 * 60 * 60 * 1000;
+const VERIFICATION_RESEND_INTERVAL_MS = 60 * 1000;
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, {
@@ -68,9 +72,49 @@ export async function POST(request: NextRequest) {
 
     const existing = await users.findOne(
       { email },
-      { collation: EMAIL_COLLATION, projection: { _id: 1 } },
+      {
+        collation: EMAIL_COLLATION,
+        projection: { _id: 1, emailVerified: 1, provider: 1, name: 1, emailVerificationSentAt: 1 },
+      },
     );
     if (existing) {
+      if (existing.provider === "password" && existing.emailVerified === false) {
+        const now = new Date();
+        if (
+          existing.emailVerificationSentAt &&
+          now.getTime() - existing.emailVerificationSentAt.getTime() < VERIFICATION_RESEND_INTERVAL_MS
+        ) {
+          return jsonResponse({ error: "A verification email was sent recently. Please check your inbox before trying again." }, 429);
+        }
+
+        const verificationToken = randomBytes(32).toString("hex");
+        const verificationTokenHash = createHash("sha256").update(verificationToken).digest("hex");
+        const update = await users.updateOne(
+          { _id: existing._id, emailVerified: false },
+          {
+            $set: {
+              emailVerificationTokenHash: verificationTokenHash,
+              emailVerificationExpiresAt: new Date(now.getTime() + VERIFICATION_TOKEN_AGE_MS),
+              emailVerificationSentAt: now,
+            },
+          },
+        );
+        if (update.modifiedCount !== 1) {
+          return jsonResponse({ error: "An account already uses this email. Please log in instead." }, 409);
+        }
+
+        await sendVerificationEmail({
+          email,
+          name: existing.name?.trim() || email,
+          token: verificationToken,
+        });
+        return jsonResponse({
+          success: true,
+          message: process.env.NODE_ENV === "development"
+            ? "The verification link was written to the development server console."
+            : "Check your email for a verification link.",
+        });
+      }
       return jsonResponse({ error: "An account already uses this email. Please log in instead." }, 409);
     }
 
@@ -84,7 +128,10 @@ export async function POST(request: NextRequest) {
     );
     const passwordSalt = randomBytes(16).toString("hex");
     const passwordHash = await hashPassword(password, passwordSalt);
-    await users.insertOne({
+    const verificationToken = randomBytes(32).toString("hex");
+    const verificationTokenHash = createHash("sha256").update(verificationToken).digest("hex");
+    const verificationSentAt = new Date();
+    const insertedUser = await users.insertOne({
       name,
       email,
       emailNormalized: email,
@@ -93,26 +140,34 @@ export async function POST(request: NextRequest) {
       role: "artist",
       provider: "password",
       createdAt: new Date(),
+      emailVerified: false,
+      emailVerificationTokenHash: verificationTokenHash,
+      emailVerificationExpiresAt: new Date(Date.now() + VERIFICATION_TOKEN_AGE_MS),
+      emailVerificationSentAt: verificationSentAt,
     });
 
-    const response = jsonResponse({ success: true });
-    response.cookies.set(
-      SESSION_COOKIE_NAME,
-      createSessionToken({ name, email, role: "artist", provider: "password" }),
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: SESSION_MAX_AGE_SECONDS,
-        path: "/",
-      },
-    );
-    return response;
+    try {
+      await sendVerificationEmail({ email, name, token: verificationToken });
+    } catch (error) {
+      try {
+        await users.deleteOne({ _id: insertedUser.insertedId, emailVerified: false });
+      } catch (cleanupError) {
+        console.error("Could not remove an account after its verification email failed to send.", cleanupError);
+      }
+      throw error;
+    }
+
+    return jsonResponse({
+      success: true,
+      message: process.env.NODE_ENV === "development"
+        ? "The verification link was written to the development server console."
+        : "Check your email for a verification link.",
+    });
   } catch (error) {
     if (isDuplicateKeyError(error)) {
       return jsonResponse({ error: "An account already uses this email. Please log in instead." }, 409);
     }
-    console.error("Could not create an artist account.", error);
-    return jsonResponse({ error: "Signup failed. Please try again." }, 500);
+    console.error("Could not complete artist account signup.", error);
+    return jsonResponse({ error: "Could not send the verification email. Please try again later." }, 503);
   }
 }
