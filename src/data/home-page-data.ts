@@ -1,4 +1,5 @@
 import { getHomePageDataFromApi } from "@/services/home-service";
+import { sampleAboutTeam } from "@/data/about-team";
 
 export type NavItem = {
   label: string;
@@ -29,6 +30,15 @@ export type AboutHighlight = {
   content: string;
 };
 
+export type AboutTeamMember = {
+  name: string;
+  role: string;
+  department: string;
+  bio: string;
+  image: string;
+  imageAlt: string;
+};
+
 export type CommunityMetric = {
   value: string;
   label: string;
@@ -45,6 +55,7 @@ export async function getHomePageData() {
     featuredEvent: data.featuredEvent,
     upcomingEvents: data.upcomingEvents as EventItem[],
     aboutHighlights: data.aboutHighlights as AboutHighlight[],
+    teamMembers: (data.teamMembers ?? sampleAboutTeam) as AboutTeamMember[],
     communityMetrics: data.communityMetrics as CommunityMetric[],
   };
 }

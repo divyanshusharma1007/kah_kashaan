@@ -1,4 +1,5 @@
 import type { EventItem, Stat } from "@/data/home-page-data";
+import Link from "next/link";
 
 type HeroSectionProps = {
   stats: Stat[];
@@ -29,12 +30,12 @@ export function HeroSection({ stats, featuredEvent, upcomingEvents }: HeroSectio
         </p>
 
         <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-          <button className="rounded-full border border-[#d9af57] bg-[#d9af57] px-7 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#121212] transition hover:bg-[#f2d98b]">
+          <Link href="/events" className="rounded-full border border-[#d9af57] bg-[#d9af57] px-7 py-3 text-center text-sm font-semibold uppercase tracking-[0.18em] text-[#121212] transition hover:bg-[#f2d98b]">
             Explore Events
-          </button>
-          <button className="rounded-full border border-[#d9af57]/40 bg-[#101010] px-7 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#f4e1af] transition hover:border-[#f2d98b] hover:text-[#fff7df]">
+          </Link>
+          <Link href="/community" className="rounded-full border border-[#d9af57]/40 bg-[#101010] px-7 py-3 text-center text-sm font-semibold uppercase tracking-[0.18em] text-[#f4e1af] transition hover:border-[#f2d98b] hover:text-[#fff7df]">
             Join The Circle
-          </button>
+          </Link>
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-4">

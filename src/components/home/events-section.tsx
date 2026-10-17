@@ -1,4 +1,5 @@
 import type { EventItem } from "@/data/home-page-data";
+import Link from "next/link";
 
 type EventsSectionProps = {
   upcomingEvents: EventItem[];
@@ -41,9 +42,9 @@ export function EventsSection({ upcomingEvents }: EventsSectionProps) {
                 <p className="mt-2 text-sm text-[#d8c8a2]">{event.venue}</p>
               </div>
 
-              <button className="rounded-full border border-[#d9af57]/40 bg-[#0d0d0d] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-[#f0ddab] transition hover:border-[#f2d98b]">
+              <Link href="/reserve" className="rounded-full border border-[#d9af57]/40 bg-[#0d0d0d] px-4 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-[#f0ddab] transition hover:border-[#f2d98b]">
                 RSVP
-              </button>
+              </Link>
             </div>
           ))}
         </div>

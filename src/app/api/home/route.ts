@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
+import { sampleAboutTeam } from "@/data/about-team";
 
 export async function GET() {
   const homePageData = {
     navItems: [
-      { label: "Home", href: "#home" },
-      { label: "About", href: "#about" },
-      { label: "Programs", href: "#programs" },
-      { label: "Events", href: "#events" },
-      { label: "Community", href: "#community" },
+      { label: "Home", href: "/" },
+      { label: "About", href: "/about" },
+      { label: "Programs", href: "/programs" },
+      { label: "Events", href: "/events" },
+      { label: "Community", href: "/community" },
     ],
     logo: {
       src: "/kah-kashaan-logo.png",
@@ -102,6 +103,7 @@ export async function GET() {
           "Every event is designed to invite participation, spotlight hidden talent, and create memorable experiences that transform people into a community.",
       },
     ],
+    teamMembers: sampleAboutTeam,
     communityMetrics: [
       { value: "4.9/5", label: "Audience rating" },
       { value: "18+", label: "Featured artists" },
