@@ -3,17 +3,32 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-context";
 
 const inputClass = "mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/25 bg-[#090909] px-4 py-3 text-base text-[#fff5d9] outline-none focus:border-[#d9af57]";
 const labelClass = "text-xs uppercase tracking-[0.16em] text-[#e7d7aa]";
+const authErrorMessages: Record<string, string> = {
+  account_exists: "An account already exists for this Google email. Please log in instead.",
+  account_not_found: "We couldn't find an account for this Google email. Please sign up first.",
+  access_denied: "Google sign-in was cancelled.",
+  auth_failed: "Google sign-in could not be completed. Please try again.",
+  google_not_configured: "Google sign-in is not configured yet. Please contact the site administrator.",
+  invalid_role: "This account does not have a valid artist or admin role.",
+  invalid_state: "Google sign-in could not be verified. Please try again.",
+};
 
-export function AuthForm({ mode }: { mode: "login" | "signup" }) {
+export function AuthForm({ mode, authError }: { mode: "login" | "signup"; authError?: string }) {
   const router = useRouter();
-  const { createArtistAccount, loginArtist, enterDemoAdmin, storageError } = useAuth();
-  const [error, setError] = useState("");
+  const { enterDemoAdmin, storageError, sessionError, refreshSession } = useAuth();
+  const [error, setError] = useState(() => authErrorMessages[authError ?? ""] ?? "");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (authError) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [authError]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,13 +40,32 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     const password = String(formData.get("password") ?? "");
 
     try {
-      if (mode === "signup") {
-        await createArtistAccount(name, email, password);
-      } else {
-        await loginArtist(email, password);
+      const response = await fetch(mode === "signup" ? "/api/auth/signup" : "/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const requestId = response.headers.get("X-Auth-Request-Id");
+      const result: unknown = await response.json();
+      if (!response.ok) {
+        console.error("[auth] browser_form_submission_failed", {
+          requestId,
+          mode,
+          status: response.status,
+        });
+        const message =
+          result && typeof result === "object" && "error" in result && typeof result.error === "string"
+            ? result.error
+            : "Could not complete your request.";
+        throw new Error(message);
       }
-      router.push("/dashboard");
+      await refreshSession();
+      router.replace("/dashboard");
     } catch (cause) {
+      console.error("[auth] browser_form_submission_error", {
+        mode,
+        error: cause instanceof Error ? cause.message : "Unknown error",
+      });
       setError(cause instanceof Error ? cause.message : "Could not complete your request.");
     } finally {
       setBusy(false);
@@ -105,6 +139,22 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               ? "Sign up as an artist to register for events and keep track of your bookings."
               : "Log in to continue to your dashboard and see your event registrations."}
           </p>
+          {(mode === "login" || mode === "signup") && (
+            <>
+              <form action={mode === "signup" ? "/api/auth/google/signup" : "/api/auth/google?intent=login"} className="mt-6" method="get">
+                <button
+                  className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-[#d9af57]/30 bg-[#171510] px-5 py-3 text-sm font-semibold text-[#fff5d9] transition hover:border-[#d9af57] hover:bg-[#201d15]"
+                  type="submit"
+                >
+                  <span aria-hidden="true" className="font-bold text-[#d9af57]">G</span>
+                  {mode === "signup" ? "Sign up with Google" : "Continue with Google"}
+                </button>
+              </form>
+              <p className="mt-3 text-center text-xs text-[#a99b7e]">
+                Your saved account role determines your dashboard access.
+              </p>
+            </>
+          )}
           <form className="mt-7 space-y-5" onSubmit={handleSubmit}>
             {mode === "signup" && (
               <div>
@@ -123,6 +173,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             </div>
             {error && <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{error}</p>}
             {storageError && <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{storageError}</p>}
+            {sessionError && <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{sessionError}</p>}
             <button className="min-h-12 w-full rounded-xl bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.13em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60" disabled={busy} type="submit">
               {busy ? "Please wait..." : mode === "signup" ? "Create artist account" : "Log in to your account"}
             </button>
@@ -138,7 +189,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             </div>
           )}
           <p className="mt-5 text-center text-xs leading-5 text-[#a99b7e]">
-            Prototype: your account data is saved only in this browser. Admin access is not secure production authentication.
+            Accounts are securely saved in the user database. Sign up with your email address or Google account.
           </p>
         </section>
       </div>

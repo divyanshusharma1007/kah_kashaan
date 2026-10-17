@@ -7,7 +7,7 @@ import { useAuth } from "@/components/auth/auth-context";
 
 export function Dashboard() {
   const router = useRouter();
-  const { user, registrations, ready, storageError, logout } = useAuth();
+  const { user, registrations, ready, storageError, sessionError, logout } = useAuth();
   const [logoutError, setLogoutError] = useState("");
 
   useEffect(() => {
@@ -21,19 +21,22 @@ export function Dashboard() {
   if (storageError) {
     return <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-red-200" role="alert">{storageError}</p>;
   }
+  if (sessionError) {
+    return <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-red-200" role="alert">{sessionError}</p>;
+  }
 
   const isAdmin = user.role === "admin";
   const visibleRegistrations = isAdmin
     ? registrations
     : registrations.filter((registration) => registration.email === user.email);
 
-  function handleLogout() {
+  async function handleLogout() {
     try {
-      logout();
+      await logout();
       router.replace("/login");
     } catch (error) {
-      console.error("Could not log out of the demo account.", error);
-      setLogoutError("Could not log out. Please check browser storage permissions and try again.");
+      console.error("Could not log out of the account.", error);
+      setLogoutError("Could not log out. Please try again.");
     }
   }
 
@@ -42,7 +45,7 @@ export function Dashboard() {
       <div className="flex flex-col justify-between gap-5 rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-6 sm:flex-row sm:items-end sm:p-9">
         <div>
           <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">
-            {isAdmin ? "Admin demo dashboard" : "Artist dashboard"}
+            {isAdmin ? user.provider ? "Admin dashboard" : "Admin demo dashboard" : "Artist dashboard"}
           </p>
           <h1 className="mt-3 font-[var(--font-display)] text-4xl text-[#fff5d9] sm:text-5xl">
             Welcome, {user.name}
@@ -54,7 +57,7 @@ export function Dashboard() {
         </button>
       </div>
 
-      {isAdmin && (
+      {isAdmin && !user.provider && (
         <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-950/30 p-4 text-sm leading-6 text-amber-100">
           Demo only: this admin view is not protected by real authentication. Data is stored in this browser and is not shared with other users.
         </p>

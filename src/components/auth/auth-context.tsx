@@ -4,7 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -22,6 +24,7 @@ export type AuthUser = {
   name: string;
   email: string;
   role: "artist" | "admin";
+  provider?: "google" | "password";
 };
 
 type ArtistAccount = AuthUser & {
@@ -48,7 +51,8 @@ type AuthContextValue = {
   registrations: ArtistRegistration[];
   ready: boolean;
   storageError: string;
-  createArtistAccount: (name: string, email: string, password: string) => Promise<void>;
+  sessionError: string;
+  refreshSession: () => Promise<void>;
   registerForEvent: (details: {
     name: string;
     email: string;
@@ -56,9 +60,8 @@ type AuthContextValue = {
     eventName: string;
     password: string;
   }) => Promise<void>;
-  loginArtist: (email: string, password: string) => Promise<void>;
   enterDemoAdmin: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const STORAGE_KEY = "kah-kashaan-demo-auth-v1";
@@ -70,6 +73,36 @@ const storeListeners = new Set<() => void>();
 
 function emptyState(): DemoState {
   return { accounts: [], registrations: [], user: null };
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "name" in value &&
+      typeof value.name === "string" &&
+      "email" in value &&
+      typeof value.email === "string" &&
+      "role" in value &&
+      (value.role === "artist" || value.role === "admin"),
+  );
+}
+
+async function fetchGoogleSessionUser(): Promise<AuthUser | null> {
+  const response = await fetch("/api/auth/session", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("The sign-in session could not be verified.");
+  }
+  const result: unknown = await response.json();
+  if (
+    !result ||
+    typeof result !== "object" ||
+    !("user" in result) ||
+    (result.user !== null && !isAuthUser(result.user))
+  ) {
+    throw new Error("The sign-in session response was invalid.");
+  }
+  return result.user;
 }
 
 function isDemoState(value: unknown): value is DemoState {
@@ -94,15 +127,18 @@ function getSnapshot(): StoreSnapshot {
   if (typeof window === "undefined") return serverSnapshot;
   if (cachedSnapshot) return cachedSnapshot;
   try {
-    cachedSnapshot = { state: readState(), ready: true, storageError: "" };
+    const snapshot = { state: readState(), ready: true, storageError: "" };
+    cachedSnapshot = snapshot;
+    return snapshot;
   } catch (error) {
-    cachedSnapshot = {
+    const snapshot = {
       state: emptyState(),
       ready: true,
       storageError: error instanceof Error ? error.message : "Could not read saved demo account data.",
     };
+    cachedSnapshot = snapshot;
+    return snapshot;
   }
-  return cachedSnapshot;
 }
 
 function subscribe(listener: () => void) {
@@ -163,24 +199,50 @@ function toAuthUser(account: ArtistAccount): AuthUser {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, () => serverSnapshot);
+  const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState("");
+
+  const refreshSession = useCallback(async () => {
+    setSessionReady(false);
+    try {
+      setSessionUser(await fetchGoogleSessionUser());
+      setSessionError("");
+    } catch (error: unknown) {
+      console.error("Could not load the Google sign-in session.", error);
+      setSessionError("Could not verify your sign-in session. Refresh the page and try again.");
+      throw error;
+    } finally {
+      setSessionReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchGoogleSessionUser()
+      .then((user) => {
+        if (active) {
+          setSessionUser(user);
+          setSessionError("");
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Could not load the Google sign-in session.", error);
+        if (active) {
+          setSessionError("Could not verify your sign-in session. Refresh the page and try again.");
+        }
+      })
+      .finally(() => {
+        if (active) setSessionReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const commit = useCallback((next: DemoState) => {
     saveState(next);
   }, []);
-
-  const createArtistAccount = useCallback(async (name: string, email: string, password: string) => {
-    const current = readState();
-    const normalizedEmail = normalizeEmail(email);
-    if (current.accounts.some((account) => account.email === normalizedEmail)) {
-      throw new Error("An artist account already uses this email. Log in instead.");
-    }
-
-    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-    const saltValue = toBase64(salt);
-    const passwordHash = await hashPassword(password, salt);
-    const account = makeArtistAccount(name, normalizedEmail, "", saltValue, passwordHash);
-    commit({ ...current, accounts: [...current.accounts, account], user: toAuthUser(account) });
-  }, [commit]);
 
   const registerForEvent = useCallback(async (details: {
     name: string;
@@ -230,15 +292,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [commit]);
 
-  const loginArtist = useCallback(async (email: string, password: string) => {
-    const current = readState();
-    const account = current.accounts.find((candidate) => candidate.email === normalizeEmail(email));
-    if (!account || await hashPassword(password, fromBase64(account.salt)) !== account.passwordHash) {
-      throw new Error("Email or password is incorrect.");
-    }
-    commit({ ...current, user: toAuthUser(account) });
-  }, [commit]);
-
   const enterDemoAdmin = useCallback(() => {
     const current = readState();
     commit({
@@ -247,21 +300,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [commit]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const response = await fetch("/api/auth/logout", { method: "POST" });
+    if (!response.ok) {
+      throw new Error("The sign-in session could not be cleared.");
+    }
+    setSessionUser(null);
+    setSessionError("");
     commit({ ...readState(), user: null });
   }, [commit]);
 
   const value = useMemo<AuthContextValue>(() => ({
-    user: snapshot.state.user,
+    user: sessionUser ?? snapshot.state.user,
     registrations: snapshot.state.registrations,
-    ready: snapshot.ready,
+    ready: snapshot.ready && sessionReady,
     storageError: snapshot.storageError,
-    createArtistAccount,
+    sessionError,
+    refreshSession,
     registerForEvent,
-    loginArtist,
     enterDemoAdmin,
     logout,
-  }), [snapshot, createArtistAccount, registerForEvent, loginArtist, enterDemoAdmin, logout]);
+  }), [snapshot, sessionUser, sessionReady, sessionError, refreshSession, registerForEvent, enterDemoAdmin, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

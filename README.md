@@ -21,9 +21,16 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 ## Account and event-registration demo
 
 - Artist accounts can be created at `/signup` or while registering for an event at `/reserve`.
-- Sign in at `/login`; `/dashboard` displays the signed-in artist's registrations.
+- Sign in at `/login`; password credentials and Google accounts are checked against the MongoDB `users` collection by email. Unknown Google emails are redirected to signup rather than being created during login.
+- Email/password signup and Google signup create MongoDB `users` entries with the `artist` role and save the artist's name and email. After Google consent, the account is created automatically and the user is signed in to the dashboard. Account signup does not request or store a phone number; Google OAuth provides the verified email and account name, not a phone number. Set an existing user's `role` to `admin` or `artist`; `/dashboard` displays the matching view after server verification.
+- Passwords are stored as salted PBKDF2 hashes; account sessions use signed, HTTP-only cookies. Event registration data and the separate demo admin preview still use browser local storage.
 - The login page includes a one-click demo admin dashboard for previewing all registrations.
-- Demo accounts and registrations are stored in browser local storage. This prototype does not provide real authentication, secure admin access, or shared/server-side persistence; connect a trusted backend before using it with real users.
+
+### Google sign-in configuration
+
+Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and a random `AUTH_SECRET` of at least 32 characters in the server environment. Add the exact `GOOGLE_REDIRECT_URI` value to the OAuth client's authorized redirect URIs in Google Cloud Console. MongoDB must be configured through `MONGODB_URI` or `MONGODB_PASSWORD`; set `MONGODB_DB` if the connection URI does not name the database. The selected database must have (or allow creation of) a `users` collection with `email` and `role` fields. New accounts save `email`, `emailNormalized`, `name`, and `role`; Google accounts also save `provider` and `googleId`, while password accounts store salted password hashes. Existing `artist` and `admin` roles are honored at login.
+
+The demo admin button is not a protected admin sign-in. Only use Google accounts and database roles for actual admin access; protect any future admin APIs with the verified server-side session as well.
 
 ## Learn More
 
