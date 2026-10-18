@@ -19,10 +19,16 @@ export type ProgramCard = {
 };
 
 export type EventItem = {
+  id?: string;
   date: string;
   title: string;
   type: string;
   venue: string;
+  startsAt?: string;
+  description?: string;
+  price?: number;
+  capacity?: number | null;
+  organizer?: string;
 };
 
 export type AboutHighlight = {

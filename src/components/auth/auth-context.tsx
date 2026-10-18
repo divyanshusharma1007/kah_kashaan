@@ -60,7 +60,6 @@ type AuthContextValue = {
     eventName: string;
     password: string;
   }) => Promise<void>;
-  enterDemoAdmin: () => void;
   logout: () => Promise<void>;
 };
 
@@ -284,19 +283,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const accounts = current.accounts.some((candidate) => candidate.email === email)
       ? current.accounts.map((candidate) => candidate.email === email ? account : candidate)
       : [...current.accounts, account];
+    const response = await fetch("/api/registrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: details.name,
+        email: details.email,
+        phone: details.phone,
+        eventName: details.eventName,
+      }),
+    });
+    let result: unknown;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error("The registration service returned an invalid response.");
+    }
+    if (!response.ok) {
+      const message =
+        result && typeof result === "object" && "error" in result && typeof result.error === "string"
+          ? result.error
+          : "Could not save your registration. Please try again.";
+      throw new Error(message);
+    }
+
     commit({
       ...current,
       accounts,
       registrations: [...current.registrations, registration],
       user: toAuthUser(account),
-    });
-  }, [commit]);
-
-  const enterDemoAdmin = useCallback(() => {
-    const current = readState();
-    commit({
-      ...current,
-      user: { name: "Demo Admin", email: "admin-demo@kah-kashaan.local", role: "admin" },
     });
   }, [commit]);
 
@@ -311,16 +326,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [commit]);
 
   const value = useMemo<AuthContextValue>(() => ({
-    user: sessionUser ?? snapshot.state.user,
+    user: sessionUser ?? (snapshot.state.user?.role === "artist" ? snapshot.state.user : null),
     registrations: snapshot.state.registrations,
     ready: snapshot.ready && sessionReady,
     storageError: snapshot.storageError,
     sessionError,
     refreshSession,
     registerForEvent,
-    enterDemoAdmin,
     logout,
-  }), [snapshot, sessionUser, sessionReady, sessionError, refreshSession, registerForEvent, enterDemoAdmin, logout]);
+  }), [snapshot, sessionUser, sessionReady, sessionError, refreshSession, registerForEvent, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

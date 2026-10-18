@@ -123,16 +123,16 @@ export function RegistrationForm({ eventNames, selectedEvent }: RegistrationForm
             type="password"
           />
           <p className="mt-2 text-xs text-[#a99b7e]">
-            This prototype stores the event registration only in this browser. Create a verified account at{" "}
+            Registration details are shared with the event team so they can manage attendance. Create a verified account at{" "}
             <Link className="text-[#f0ddab] underline underline-offset-2" href="/signup">sign up</Link>{" "}
-            to use a persistent artist dashboard.
-            Already registered? <Link className="text-[#f0ddab] underline underline-offset-2" href="/login">Log in</Link> with your existing password.
+            to use your persistent artist dashboard. Already registered?{" "}
+            <Link className="text-[#f0ddab] underline underline-offset-2" href="/login">Log in</Link>.
           </p>
         </div>
       </div>
 
       <p className="mt-5 text-xs leading-5 text-[#a99b7e]">
-        Prototype only: account and registration details are saved in this browser and are not sent to a server.
+        Your event registration will be visible to event administrators and in your artist dashboard.
       </p>
       {(error || storageError) && (
         <p aria-live="polite" className="mt-4 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">

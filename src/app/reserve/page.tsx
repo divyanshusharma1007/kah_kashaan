@@ -1,15 +1,23 @@
+import Link from "next/link";
+import { connection } from "next/server";
 import { RegistrationForm } from "@/components/home/registration-form";
 import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
+import { getPublicEventData } from "@/data/public-event-data";
 
 export default async function ReservePage({
   searchParams,
 }: {
   searchParams: Promise<{ event?: string }>;
 }) {
-  const [{ navItems, logo, featuredEvent, upcomingEvents }, { event: selectedEvent }] =
+  await connection();
+  const [{ navItems, logo, featuredEvent, upcomingEvents: fallbackEvents }, { event: selectedEvent }] =
     await Promise.all([getHomePageData(), searchParams]);
-  const eventNames = [featuredEvent.title, ...upcomingEvents.map((event) => event.title)];
+  const { upcomingEvents } = await getPublicEventData(
+    fallbackEvents,
+    featuredEvent,
+  );
+  const eventNames = upcomingEvents.map((event) => event.title);
 
   return (
     <SiteLayout navItems={navItems} logo={logo}>
@@ -21,11 +29,19 @@ export default async function ReservePage({
               Save your seat
             </h1>
             <p className="mt-4 text-sm leading-7 text-[#d8c8a2] sm:text-base">
-              Choose a gathering and create your artist account as you register. Your registration
-              will appear in your artist dashboard on this browser.
+              Choose a published gathering and register your details. Your registration will be
+              shared with the event team and saved to your artist dashboard.
             </p>
           </div>
-          <RegistrationForm eventNames={eventNames} selectedEvent={selectedEvent} />
+          {eventNames.length > 0 ? (
+            <RegistrationForm eventNames={eventNames} selectedEvent={selectedEvent} />
+          ) : (
+            <p className="rounded-2xl border border-[#d9af57]/20 bg-[#111111] p-6 text-sm leading-7 text-[#d8c8a2]">
+              There are no upcoming events available for registration right now. Please check the{" "}
+              <Link className="text-[#f0ddab] underline underline-offset-4" href="/events">events page</Link>{" "}
+              again soon.
+            </p>
+          )}
         </div>
       </section>
     </SiteLayout>

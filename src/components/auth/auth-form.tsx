@@ -30,7 +30,7 @@ export function AuthForm({
   verified?: boolean;
 }) {
   const router = useRouter();
-  const { enterDemoAdmin, storageError, sessionError, refreshSession } = useAuth();
+  const { storageError, sessionError, refreshSession } = useAuth();
   const [error, setError] = useState(() => authErrorMessages[authError ?? ""] ?? "");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupMessage, setSignupMessage] = useState("");
@@ -91,15 +91,6 @@ export function AuthForm({
       setError(cause instanceof Error ? cause.message : "Could not complete your request.");
     } finally {
       setBusy(false);
-    }
-  }
-
-  function handleAdminDemo() {
-    try {
-      enterDemoAdmin();
-      router.push("/dashboard");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not open the demo admin dashboard.");
     }
   }
 
@@ -246,16 +237,6 @@ export function AuthForm({
               {busy ? "Please wait..." : mode === "signup" ? signupEmail ? "Resend verification email" : "Create artist account" : "Log in to your account"}
             </button>
           </form>
-          {mode === "login" && (
-            <div className="mt-5 border-t border-[#d9af57]/15 pt-4">
-              <p className="text-xs leading-5 text-[#a99b7e]">
-                Admin access is available as a local demo preview only.
-              </p>
-              <button className="mt-3 min-h-10 w-full rounded-xl border border-[#d9af57]/35 px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#f0ddab] transition hover:bg-[#d9af57]/10" onClick={handleAdminDemo} type="button">
-                Open demo admin dashboard
-              </button>
-            </div>
-          )}
           <p className="mt-5 text-center text-xs leading-5 text-[#a99b7e]">
             Accounts are securely saved in the user database. Sign up with your email address or Google account.
           </p>
