@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
       passwordSalt,
       passwordHash,
       role: "artist",
+      isActive: true,
       provider: "password",
       createdAt: new Date(),
       emailVerified: false,

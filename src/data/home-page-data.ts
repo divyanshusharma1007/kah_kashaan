@@ -29,6 +29,7 @@ export type EventItem = {
   price?: number;
   capacity?: number | null;
   organizer?: string;
+  skillIds?: string[];
 };
 
 export type AboutHighlight = {

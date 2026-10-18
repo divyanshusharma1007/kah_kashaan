@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME, verifySessionToken } from "@/services/auth-session";
+import { getSignedInArtist } from "@/services/artist-auth";
 import { listRegistrationsForArtist } from "@/services/artist-directory";
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json(
-      { error: "Sign in to view your registrations." },
-      { status: 401, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
   try {
-    const user = verifySessionToken(token);
-    if (!user) {
-      return NextResponse.json(
-        { error: "Your session has expired. Please sign in again." },
-        { status: 401, headers: { "Cache-Control": "no-store" } },
-      );
-    }
+    const user = await getSignedInArtist(request);
+    if (user instanceof NextResponse) return user;
 
     const registrations = await listRegistrationsForArtist(user.email);
     if (!registrations) {

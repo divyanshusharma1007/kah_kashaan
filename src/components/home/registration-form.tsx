@@ -1,150 +1,226 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { ArtistSkillSelector } from "@/components/auth/artist-skill-selector";
 import { useAuth } from "@/components/auth/auth-context";
+import type { ArtistSkill } from "@/services/artist-skills";
 
 type RegistrationFormProps = {
   eventNames: string[];
+  eventChoices?: { id: string; title: string; skillIds: string[] }[];
   selectedEvent?: string;
+  selectedEventId?: string;
 };
 
-export function RegistrationForm({ eventNames, selectedEvent }: RegistrationFormProps) {
+export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent, selectedEventId }: RegistrationFormProps) {
   const router = useRouter();
-  const { registerForEvent, storageError } = useAuth();
+  const pathname = usePathname();
+  const { user, ready } = useAuth();
+  const [skills, setSkills] = useState<ArtistSkill[]>([]);
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  const defaultEvent = eventNames.includes(selectedEvent ?? "") ? selectedEvent : "";
+  const [registered, setRegistered] = useState(false);
+  const [eventName, setEventName] = useState(selectedEvent && eventNames.includes(selectedEvent) ? selectedEvent : "");
+  const signedInArtist = user?.role === "artist" && user.provider ? user : null;
+  const activeEventName = eventNames.length === 1 ? eventNames[0] : eventName;
+  const selectedChoice = eventChoices.find((event) => event.title === activeEventName);
+  const visibleSkills = selectedChoice?.skillIds.length
+    ? skills.filter((skill) => selectedChoice.skillIds.includes(skill.id))
+    : skills;
+
+  useEffect(() => {
+    if (!signedInArtist) return;
+    let active = true;
+    Promise.all([
+      fetch("/api/skills", { cache: "no-store" }),
+      fetch("/api/artist/profile", { cache: "no-store" }),
+    ])
+      .then(async ([skillsResponse, profileResponse]) => {
+        const [skillsResult, profileResult] = await Promise.all([
+          skillsResponse.json(),
+          profileResponse.json(),
+        ]) as [unknown, unknown];
+        if (!skillsResponse.ok) {
+          throw new Error(skillsResult && typeof skillsResult === "object" && "error" in skillsResult &&
+            typeof skillsResult.error === "string" ? skillsResult.error : "Performance skills could not be loaded.");
+        }
+        if (!profileResponse.ok) {
+          throw new Error(profileResult && typeof profileResult === "object" && "error" in profileResult &&
+            typeof profileResult.error === "string" ? profileResult.error : "Your saved profile skills could not be loaded.");
+        }
+        if (!skillsResult || typeof skillsResult !== "object" || !("skills" in skillsResult) ||
+            !Array.isArray(skillsResult.skills) || !profileResult || typeof profileResult !== "object" ||
+            !("profile" in profileResult) || !profileResult.profile || typeof profileResult.profile !== "object") {
+          throw new Error("Performance skills returned an invalid response.");
+        }
+        const availableSkills = skillsResult.skills.filter((skill): skill is ArtistSkill => {
+          if (!skill || typeof skill !== "object") return false;
+          const item = skill as Partial<ArtistSkill>;
+          return typeof item.id === "string" && typeof item.name === "string" &&
+            typeof item.description === "string" && typeof item.createdAt === "string" &&
+            typeof item.updatedAt === "string";
+        });
+        const profile = profileResult.profile as { skillIds?: unknown };
+        if (profile.skillIds !== undefined &&
+            (!Array.isArray(profile.skillIds) || !profile.skillIds.every((id) => typeof id === "string"))) {
+          throw new Error("Your saved profile skills returned an invalid response.");
+        }
+        if (active) {
+          setSkills(availableSkills);
+          setSelectedSkillIds(Array.isArray(profile.skillIds)
+            ? profile.skillIds.filter((id): id is string =>
+                typeof id === "string" && availableSkills.some((skill) => skill.id === id),
+              )
+            : []);
+        }
+      })
+      .catch((cause: unknown) => {
+        console.error("Could not load registration skills.", cause);
+        if (active) setError(cause instanceof Error ? cause.message : "Performance skills could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setLoadingSkills(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [signedInArtist]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!formRef.current?.reportValidity()) return;
     setError("");
     setSubmitting(true);
-    const formData = new FormData(event.currentTarget);
     try {
-      await registerForEvent({
-        name: String(formData.get("name") ?? ""),
-        email: String(formData.get("email") ?? ""),
-        phone: String(formData.get("phone") ?? ""),
-        eventName: String(formData.get("event") ?? ""),
-        password: String(formData.get("password") ?? ""),
+      const selectedName = eventNames.length === 1 ? eventNames[0] : eventName;
+      if (!selectedName) throw new Error("Choose an event before registering.");
+      const eventId = eventChoices.find((event) => event.title === selectedName)?.id ?? selectedEventId;
+      const response = await fetch("/api/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: signedInArtist?.name,
+          email: signedInArtist?.email,
+          eventName: selectedName,
+          eventId,
+          skillIds: selectedSkillIds.filter((id) => visibleSkills.some((skill) => skill.id === id)),
+        }),
       });
-      router.push("/dashboard");
+      let result: unknown;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error("The registration service returned an invalid response.");
+      }
+      if (!response.ok) {
+        const message = result && typeof result === "object" && "error" in result && typeof result.error === "string"
+          ? result.error
+          : "Could not complete your registration.";
+        throw new Error(message);
+      }
+      setRegistered(true);
+      router.refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save your registration.");
+      setError(cause instanceof Error ? cause.message : "Could not complete your registration.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  return (
-    <form
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className="rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-5 sm:p-8"
-    >
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="registration-name" className="text-xs uppercase tracking-[0.16em] text-[#e7d7aa]">
-            Full name <span aria-hidden="true" className="text-[#d9af57]">*</span>
-          </label>
-          <input
-            autoComplete="name"
-            className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base text-[#fff5d9] outline-none transition placeholder:text-[#81765f] focus:border-[#d9af57]"
-            id="registration-name"
-            name="name"
-            placeholder="Your full name"
-            required
-          />
-        </div>
-
-        <div>
-          <label htmlFor="registration-email" className="text-xs uppercase tracking-[0.16em] text-[#e7d7aa]">
-            Email address <span aria-hidden="true" className="text-[#d9af57]">*</span>
-          </label>
-          <input
-            autoComplete="email"
-            className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base text-[#fff5d9] outline-none transition placeholder:text-[#81765f] focus:border-[#d9af57]"
-            id="registration-email"
-            name="email"
-            placeholder="you@example.com"
-            required
-            type="email"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="registration-phone" className="text-xs uppercase tracking-[0.16em] text-[#e7d7aa]">
-            Phone number <span aria-hidden="true" className="text-[#d9af57]">*</span>
-          </label>
-          <input
-            autoComplete="tel"
-            className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base text-[#fff5d9] outline-none transition placeholder:text-[#81765f] focus:border-[#d9af57]"
-            id="registration-phone"
-            name="phone"
-            placeholder="Your contact number"
-            required
-            type="tel"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="registration-event" className="text-xs uppercase tracking-[0.16em] text-[#e7d7aa]">
-            Choose an event <span aria-hidden="true" className="text-[#d9af57]">*</span>
-          </label>
-          <select
-            className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base text-[#fff5d9] outline-none transition focus:border-[#d9af57]"
-            defaultValue={defaultEvent}
-            id="registration-event"
-            name="event"
-            required
-          >
-            <option disabled value="">Select an event</option>
-            {eventNames.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label htmlFor="registration-password" className="text-xs uppercase tracking-[0.16em] text-[#e7d7aa]">
-            Create a password <span aria-hidden="true" className="text-[#d9af57]">*</span>
-          </label>
-          <input
-            autoComplete="new-password"
-            className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base text-[#fff5d9] outline-none transition placeholder:text-[#81765f] focus:border-[#d9af57]"
-            id="registration-password"
-            minLength={8}
-            name="password"
-            placeholder="At least 8 characters"
-            required
-            type="password"
-          />
-          <p className="mt-2 text-xs text-[#a99b7e]">
-            Registration details are shared with the event team so they can manage attendance. Create a verified account at{" "}
-            <Link className="text-[#f0ddab] underline underline-offset-2" href="/signup">sign up</Link>{" "}
-            to use your persistent artist dashboard. Already registered?{" "}
-            <Link className="text-[#f0ddab] underline underline-offset-2" href="/login">Log in</Link>.
-          </p>
+  if (!signedInArtist) {
+    if (!ready) {
+      return <p className="rounded-xl border border-white/[0.08] bg-[#10100f] p-4 text-sm text-[#a99b7e]" role="status">Checking your artist account...</p>;
+    }
+    const destination = selectedEventId ? `/events/${selectedEventId}` : pathname;
+    if (user?.role === "admin") {
+      return (
+        <p className="rounded-xl border border-white/[0.08] bg-[#10100f] p-4 text-sm text-[#a99b7e]">
+          Event registration is available to signed-in artist accounts.
+        </p>
+      );
+    }
+    return (
+      <div className="rounded-2xl border border-[#d9af57]/20 bg-[#111111] p-5 sm:p-6">
+        <p className="text-sm leading-6 text-[#d8c8a2]">Sign in with your artist account to register and keep this event in your artist dashboard.</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link className="inline-flex min-h-11 items-center rounded-full bg-[#d9af57] px-5 text-xs font-semibold uppercase tracking-[0.14em] text-[#121212] hover:bg-[#f2d98b]" href={`/login?returnTo=${encodeURIComponent(destination)}`}>
+            Log in to register
+          </Link>
+          <Link className="inline-flex min-h-11 items-center rounded-full border border-[#d9af57]/35 px-5 text-xs font-semibold uppercase tracking-[0.14em] text-[#f0ddab] hover:border-[#d9af57]" href={`/signup?returnTo=${encodeURIComponent(destination)}`}>
+            Create artist account
+          </Link>
         </div>
       </div>
+    );
+  }
 
-      <p className="mt-5 text-xs leading-5 text-[#a99b7e]">
-        Your event registration will be visible to event administrators and in your artist dashboard.
-      </p>
-      {(error || storageError) && (
-        <p aria-live="polite" className="mt-4 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">
-          {error || storageError}
-        </p>
+  if (registered) {
+    return (
+      <div className="rounded-2xl border border-emerald-400/25 bg-emerald-950/20 p-5 sm:p-6" role="status">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Registration confirmed</p>
+        <h3 className="mt-2 font-[var(--font-display)] text-2xl text-[#fff5d9]">{eventNames.length === 1 ? eventNames[0] : eventName}</h3>
+        <p className="mt-2 text-sm leading-6 text-[#c6bda5]">This event is now part of your artist dashboard.</p>
+        <Link className="mt-4 inline-flex min-h-10 items-center text-xs font-semibold uppercase tracking-[0.14em] text-[#f0ddab] underline underline-offset-4" href="/dashboard">
+          View artist dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <form className="rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-5 sm:p-8" onSubmit={handleSubmit}>
+      <div className="mb-5 rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-4">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#a79a7d]">Registering as</p>
+        <p className="mt-1 text-sm font-medium text-[#f0e6ce]">{signedInArtist.name}</p>
+        <p className="mt-1 break-all text-xs text-[#827864]">{signedInArtist.email}</p>
+      </div>
+      {eventNames.length > 1 && (
+        <label className="block text-xs uppercase tracking-[0.16em] text-[#e7d7aa]" htmlFor="registration-event">
+          Choose an event
+          <select
+            className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base normal-case tracking-normal text-[#fff5d9] outline-none focus:border-[#d9af57]"
+            id="registration-event"
+            onChange={(event) => {
+              const nextName = event.target.value;
+              const nextChoice = eventChoices.find((choice) => choice.title === nextName);
+              setEventName(nextName);
+              if (nextChoice?.skillIds.length) {
+                setSelectedSkillIds((current) => current.filter((id) => nextChoice.skillIds.includes(id)));
+              }
+            }}
+            required
+            value={eventName}
+          >
+            <option value="">Select an event</option>
+            {eventNames.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
       )}
-      <button
-        className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto"
-        disabled={submitting}
-        type="submit"
-      >
-        {submitting ? "Registering..." : "Register as an artist"}
+      <fieldset className="mt-5" disabled={loadingSkills || submitting}>
+        <legend className="text-xs font-medium uppercase tracking-[0.16em] text-[#e7d7aa]">What would you like to perform?</legend>
+        <p className="mb-3 mt-2 text-xs leading-5 text-[#a99b7e]">
+          Select one or more skills for the event. Your profile selections are preselected, and you can change them here.
+        </p>
+        {loadingSkills ? (
+          <p className="rounded-xl border border-white/[0.08] p-4 text-sm text-[#a99b7e]" role="status">Loading performance skills...</p>
+        ) : (
+          <ArtistSkillSelector
+            idPrefix="event-registration"
+            onChange={setSelectedSkillIds}
+            selectedIds={selectedSkillIds}
+            skills={visibleSkills}
+          />
+        )}
+      </fieldset>
+      {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">{error}</p>}
+      <p className="mt-5 text-xs leading-5 text-[#a99b7e]">
+        A phone number is optional. You can add your contact details and performance skills to your profile at any time.
+      </p>
+      <button className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto" disabled={submitting || loadingSkills || (eventNames.length > 1 && !eventName)} type="submit">
+        {submitting ? "Registering..." : "Register for event"}
       </button>
     </form>
   );

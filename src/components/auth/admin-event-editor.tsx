@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { ArtistSkillSelector } from "@/components/auth/artist-skill-selector";
+import type { ArtistSkill } from "@/services/artist-skills";
 import type { EventStatus, ManagedEvent } from "@/services/events";
 
 type EventForm = {
@@ -15,6 +17,7 @@ type EventForm = {
   capacity: string;
   organizer: string;
   status: EventStatus;
+  skillIds: string[];
 };
 
 const emptyForm: EventForm = {
@@ -27,6 +30,7 @@ const emptyForm: EventForm = {
   capacity: "",
   organizer: "",
   status: "published",
+  skillIds: [],
 };
 
 const inputClass =
@@ -46,6 +50,8 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     (event.capacity === null || typeof event.capacity === "number") &&
     typeof event.organizer === "string" &&
     (event.status === "published" || event.status === "draft") &&
+    Array.isArray(event.skillIds) &&
+    event.skillIds.every((id) => typeof id === "string") &&
     typeof event.createdAt === "string" &&
     typeof event.updatedAt === "string";
 }
@@ -54,6 +60,19 @@ function toLocalDateTime(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "";
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function todayInIndia(): string {
+  const parts: Record<string, string> = {};
+  for (const { type, value } of new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date())) {
+    parts[type] = value;
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 async function parseResponse(response: Response): Promise<unknown> {
@@ -73,9 +92,48 @@ function responseError(result: unknown, fallback: string): string {
 export function AdminEventEditor({ eventId }: { eventId?: string }) {
   const router = useRouter();
   const [form, setForm] = useState<EventForm>(emptyForm);
+  const [skills, setSkills] = useState<ArtistSkill[]>([]);
   const [loading, setLoading] = useState(Boolean(eventId));
+  const [skillsLoading, setSkillsLoading] = useState(true);
+  const [skillsError, setSkillsError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/skills", { cache: "no-store" })
+      .then(async (response) => {
+        const result = await parseResponse(response);
+        if (!response.ok) throw new Error(responseError(result, "Could not load event skills."));
+        if (!result || typeof result !== "object" || !("skills" in result) || !Array.isArray(result.skills)) {
+          throw new Error("The event skills service returned an invalid response.");
+        }
+        const availableSkills = result.skills.filter((skill): skill is ArtistSkill => {
+          if (!skill || typeof skill !== "object") return false;
+          const item = skill as Partial<ArtistSkill>;
+          return typeof item.id === "string" &&
+            typeof item.name === "string" &&
+            typeof item.description === "string" &&
+            typeof item.createdAt === "string" &&
+            typeof item.updatedAt === "string";
+        });
+        if (active) setSkills(availableSkills);
+      })
+      .catch((cause: unknown) => {
+        console.error("Could not load event skills.", cause);
+        if (active) {
+          const message = cause instanceof Error ? cause.message : "Could not load event skills.";
+          setSkillsError(message);
+          setError(message);
+        }
+      })
+      .finally(() => {
+        if (active) setSkillsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!eventId) return;
@@ -100,6 +158,7 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             capacity: event.capacity === null ? "" : String(event.capacity),
             organizer: event.organizer,
             status: event.status,
+            skillIds: event.skillIds,
           });
         }
       })
@@ -125,6 +184,9 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
     setError("");
 
     try {
+      if (form.startsAt.slice(0, 10) < todayInIndia()) {
+        throw new Error("Event date cannot be before today.");
+      }
       const startsAt = new Date(form.startsAt);
       if (!Number.isFinite(startsAt.getTime())) throw new Error("Enter a valid event date and time.");
       const price = Number(form.price);
@@ -194,7 +256,7 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             </label>
             <label className={labelClass}>
               Date and time
-              <input className={inputClass} onChange={(event) => updateField("startsAt", event.target.value)} required type="datetime-local" value={form.startsAt} />
+              <input className={inputClass} min={`${todayInIndia()}T00:00`} onChange={(event) => updateField("startsAt", event.target.value)} required type="datetime-local" value={form.startsAt} />
             </label>
             <label className={`${labelClass} sm:col-span-2`}>
               Location
@@ -231,13 +293,31 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
                 ))}
               </div>
             </fieldset>
+            <fieldset className="sm:col-span-2">
+              <legend className="mb-2 text-xs font-medium text-[#cbbd9f]">Skills for this event</legend>
+              <p className="mb-3 text-xs leading-5 text-[#827864]">
+                Choose the skills artists can select when registering. No selection keeps all skills available.
+              </p>
+              {skillsLoading ? (
+                <p className="rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-4 text-sm text-[#a99b7e]" role="status">
+                  Loading skills...
+                </p>
+              ) : (
+                <ArtistSkillSelector
+                  idPrefix="event"
+                  onChange={(ids) => updateField("skillIds", ids)}
+                  selectedIds={form.skillIds}
+                  skills={skills}
+                />
+              )}
+            </fieldset>
           </div>
           <div className="flex flex-col-reverse justify-end gap-2 border-t border-white/[0.06] pt-4 sm:flex-row">
             <Link className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/[0.09] px-4 text-xs text-[#b9ab8c] transition hover:border-white/20" href="/dashboard/events">
               Cancel
             </Link>
-            <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:cursor-wait disabled:opacity-60" disabled={saving} type="submit">
-              {saving ? "Saving..." : eventId ? "Save changes" : "Create event"}
+            <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:cursor-wait disabled:opacity-60" disabled={saving || skillsLoading || Boolean(skillsError)} type="submit">
+              {skillsLoading ? "Loading skills..." : saving ? "Saving..." : eventId ? "Save changes" : "Create event"}
             </button>
           </div>
         </form>

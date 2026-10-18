@@ -33,6 +33,7 @@ export async function getPublicEventData(
       price: event.price,
       capacity: event.capacity,
       organizer: event.organizer,
+      skillIds: event.skillIds,
     };
   });
   const firstEvent = events[0];

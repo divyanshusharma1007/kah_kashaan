@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/services/auth-session";
+import { isArtistAccountActive } from "@/services/artist-directory";
 
-function sessionResponse(body: { user: unknown } | { error: string }, status = 200) {
+function sessionResponse(body: { user: unknown; artistOffline?: boolean } | { error: string }, status = 200) {
   const response = NextResponse.json(body, { status });
   response.headers.set("Cache-Control", "private, no-store");
   return response;
@@ -13,6 +14,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const user = verifySessionToken(token);
+    if (user?.role === "artist") {
+      const active = await isArtistAccountActive(user.email);
+      if (active === null) return sessionResponse({ error: "Account status could not be checked." }, 503);
+      if (!active) {
+        const response = sessionResponse({ user: null, artistOffline: true });
+        response.cookies.delete(SESSION_COOKIE_NAME);
+        return response;
+      }
+    }
     if (user) return sessionResponse({ user });
   } catch (error) {
     console.error("Could not verify the Google sign-in session:", error);

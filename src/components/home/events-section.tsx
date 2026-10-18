@@ -100,8 +100,8 @@ export function EventsSection({ upcomingEvents }: EventsSectionProps) {
                 </div>
               </div>
 
-              <Link href={`/reserve?event=${encodeURIComponent(event.title)}`} className="w-full rounded-full border border-[#d9af57]/40 bg-[#0d0d0d] px-4 py-3 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-[#f0ddab] transition hover:border-[#f2d98b] md:w-auto">
-                RSVP
+              <Link href={event.id ? `/events/${event.id}` : `/reserve?event=${encodeURIComponent(event.title)}`} className="w-full rounded-full border border-[#d9af57]/40 bg-[#0d0d0d] px-4 py-3 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-[#f0ddab] transition hover:border-[#f2d98b] md:w-auto">
+                {event.id ? "Details & register" : "RSVP"}
               </Link>
             </article>
           ))}

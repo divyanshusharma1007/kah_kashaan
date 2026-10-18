@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
-import { deleteEvent, getAdminEvent, isValidEventId, parseEventInput, updateEvent } from "@/services/events";
+import {
+  deleteEvent,
+  getAdminEvent,
+  isValidEventId,
+  parseEventInput,
+  updateEvent,
+} from "@/services/events";
+import { getArtistSkillsByIds } from "@/services/artist-skills";
 
 type EventRouteContext = {
   params: Promise<{ id: string }>;
@@ -51,6 +58,11 @@ export async function PUT(request: NextRequest, context: EventRouteContext) {
   if (!parsed.success) return jsonResponse({ error: parsed.error }, 400);
 
   try {
+    const skills = await getArtistSkillsByIds(parsed.data.skillIds);
+    if (!skills) return jsonResponse({ error: "Event skills are temporarily unavailable." }, 503);
+    if (skills.length !== parsed.data.skillIds.length) {
+      return jsonResponse({ error: "One or more selected skills are no longer available. Refresh and try again." }, 400);
+    }
     const event = await updateEvent(id, parsed.data);
     if (event === null) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);
     if (!event) return jsonResponse({ error: "Event not found." }, 404);
@@ -70,9 +82,12 @@ export async function DELETE(request: NextRequest, context: EventRouteContext) {
   if (!isValidEventId(id)) return jsonResponse({ error: "Event not found." }, 404);
 
   try {
-    const deleted = await deleteEvent(id);
-    if (deleted === null) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);
-    if (!deleted) return jsonResponse({ error: "Event not found." }, 404);
+    const result = await deleteEvent(id);
+    if (result === null) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);
+    if (result === "has-registrations") {
+      return jsonResponse({ error: "This event cannot be deleted because one or more artists are registered." }, 409);
+    }
+    if (result === "not-found") return jsonResponse({ error: "Event not found." }, 404);
     return jsonResponse({ success: true });
   } catch (error) {
     console.error("Could not delete event.", error);

@@ -18,6 +18,11 @@ export type ArtistRegistration = {
   phone: string;
   eventName: string;
   createdAt: string;
+  eventId?: string;
+  eventStartsAt?: string;
+  eventPrice?: number;
+  willPerform?: boolean;
+  skillNames?: string[];
 };
 
 export type AuthUser = {
@@ -59,6 +64,7 @@ type AuthContextValue = {
     phone: string;
     eventName: string;
     password: string;
+    eventId?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -87,7 +93,7 @@ function isAuthUser(value: unknown): value is AuthUser {
   );
 }
 
-async function fetchGoogleSessionUser(): Promise<AuthUser | null> {
+async function fetchGoogleSessionUser(): Promise<{ user: AuthUser | null; artistOffline: boolean }> {
   const response = await fetch("/api/auth/session", { cache: "no-store" });
   if (!response.ok) {
     throw new Error("The sign-in session could not be verified.");
@@ -97,11 +103,15 @@ async function fetchGoogleSessionUser(): Promise<AuthUser | null> {
     !result ||
     typeof result !== "object" ||
     !("user" in result) ||
-    (result.user !== null && !isAuthUser(result.user))
+    (result.user !== null && !isAuthUser(result.user)) ||
+    ("artistOffline" in result && typeof result.artistOffline !== "boolean")
   ) {
     throw new Error("The sign-in session response was invalid.");
   }
-  return result.user;
+  return {
+    user: result.user,
+    artistOffline: "artistOffline" in result && result.artistOffline === true,
+  };
 }
 
 function isDemoState(value: unknown): value is DemoState {
@@ -199,13 +209,16 @@ function toAuthUser(account: ArtistAccount): AuthUser {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, () => serverSnapshot);
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
+  const [artistOffline, setArtistOffline] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionError, setSessionError] = useState("");
 
   const refreshSession = useCallback(async () => {
     setSessionReady(false);
     try {
-      setSessionUser(await fetchGoogleSessionUser());
+      const session = await fetchGoogleSessionUser();
+      setSessionUser(session.user);
+      setArtistOffline(session.artistOffline);
       setSessionError("");
     } catch (error: unknown) {
       console.error("Could not load the Google sign-in session.", error);
@@ -219,9 +232,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     fetchGoogleSessionUser()
-      .then((user) => {
+      .then((session) => {
         if (active) {
-          setSessionUser(user);
+          setSessionUser(session.user);
+          setArtistOffline(session.artistOffline);
           setSessionError("");
         }
       })
@@ -239,6 +253,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (sessionUser?.role !== "artist") return;
+
+    let active = true;
+    const checkAccountStatus = () => {
+      fetchGoogleSessionUser()
+        .then((session) => {
+          if (!active) return;
+          setArtistOffline(session.artistOffline);
+          if (session.artistOffline || !session.user) setSessionUser(null);
+        })
+        .catch((error: unknown) => {
+          console.error("Could not refresh artist account status.", error);
+        });
+    };
+    const interval = window.setInterval(checkAccountStatus, 60_000);
+    window.addEventListener("focus", checkAccountStatus);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", checkAccountStatus);
+    };
+  }, [sessionUser]);
+
   const commit = useCallback((next: DemoState) => {
     saveState(next);
   }, []);
@@ -249,7 +287,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     phone: string;
     eventName: string;
     password: string;
+    eventId?: string;
   }) => {
+    if (sessionUser?.role === "artist") {
+      const response = await fetch("/api/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: sessionUser.name,
+          email: sessionUser.email,
+          phone: "",
+          eventName: details.eventName,
+          ...(details.eventId ? { eventId: details.eventId } : {}),
+        }),
+      });
+      let result: unknown;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error("The registration service returned an invalid response.");
+      }
+      if (!response.ok) {
+        const message =
+          result && typeof result === "object" && "error" in result && typeof result.error === "string"
+            ? result.error
+            : "Could not save your registration. Please try again.";
+        throw new Error(message);
+      }
+      return;
+    }
+
     const current = readState();
     const email = normalizeEmail(details.email);
     let account = current.accounts.find((candidate) => candidate.email === email);
@@ -291,6 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: details.email,
         phone: details.phone,
         eventName: details.eventName,
+        ...(details.eventId ? { eventId: details.eventId } : {}),
       }),
     });
     let result: unknown;
@@ -313,7 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registrations: [...current.registrations, registration],
       user: toAuthUser(account),
     });
-  }, [commit]);
+  }, [commit, sessionUser]);
 
   const logout = useCallback(async () => {
     const response = await fetch("/api/auth/logout", { method: "POST" });
@@ -326,7 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [commit]);
 
   const value = useMemo<AuthContextValue>(() => ({
-    user: sessionUser ?? (snapshot.state.user?.role === "artist" ? snapshot.state.user : null),
+    user: sessionUser ?? (!artistOffline && snapshot.state.user?.role === "artist" ? snapshot.state.user : null),
     registrations: snapshot.state.registrations,
     ready: snapshot.ready && sessionReady,
     storageError: snapshot.storageError,
@@ -334,7 +402,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshSession,
     registerForEvent,
     logout,
-  }), [snapshot, sessionUser, sessionReady, sessionError, refreshSession, registerForEvent, logout]);
+  }), [snapshot, sessionUser, artistOffline, sessionReady, sessionError, refreshSession, registerForEvent, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

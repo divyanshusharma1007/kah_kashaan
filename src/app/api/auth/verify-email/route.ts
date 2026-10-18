@@ -15,6 +15,7 @@ type UserDocument = {
   emailVerificationTokenHash?: string;
   emailVerificationExpiresAt?: Date;
   emailVerified?: boolean;
+  isActive?: boolean;
 };
 
 function jsonResponse(body: object, status = 200) {
@@ -61,6 +62,9 @@ export async function POST(request: NextRequest) {
     });
     if (!user || !user.email || !isUserRole(user.role)) {
       return jsonResponse({ error: "This verification link is invalid or expired. Please sign up again." }, 400);
+    }
+    if (user.role === "artist" && user.isActive === false) {
+      return jsonResponse({ error: "Your artist account is currently offline. Please contact the event team for assistance." }, 403);
     }
 
     const sessionToken = createSessionToken({
@@ -129,6 +133,10 @@ export async function GET(request: NextRequest) {
     });
     if (!user?.email || !isUserRole(user.role)) {
       loginUrl.searchParams.set("verificationError", "invalid");
+      return NextResponse.redirect(loginUrl);
+    }
+    if (user.role === "artist" && user.isActive === false) {
+      loginUrl.searchParams.set("authError", "artist_offline");
       return NextResponse.redirect(loginUrl);
     }
 

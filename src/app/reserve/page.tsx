@@ -18,6 +18,7 @@ export default async function ReservePage({
     featuredEvent,
   );
   const eventNames = upcomingEvents.map((event) => event.title);
+  const selectedEventId = upcomingEvents.find((event) => event.title === selectedEvent)?.id;
 
   return (
     <SiteLayout navItems={navItems} logo={logo}>
@@ -34,7 +35,14 @@ export default async function ReservePage({
             </p>
           </div>
           {eventNames.length > 0 ? (
-            <RegistrationForm eventNames={eventNames} selectedEvent={selectedEvent} />
+            <RegistrationForm
+              eventChoices={upcomingEvents.flatMap((event) =>
+                event.id ? [{ id: event.id, title: event.title, skillIds: event.skillIds ?? [] }] : [],
+              )}
+              eventNames={eventNames}
+              selectedEvent={selectedEvent}
+              selectedEventId={selectedEventId}
+            />
           ) : (
             <p className="rounded-2xl border border-[#d9af57]/20 bg-[#111111] p-6 text-sm leading-7 text-[#d8c8a2]">
               There are no upcoming events available for registration right now. Please check the{" "}

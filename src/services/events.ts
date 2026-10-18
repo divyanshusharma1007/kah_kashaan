@@ -15,6 +15,7 @@ export type EventInput = {
   capacity: number | null;
   organizer: string;
   status: EventStatus;
+  skillIds: string[];
 };
 
 export type ManagedEvent = EventInput & {
@@ -23,15 +24,53 @@ export type ManagedEvent = EventInput & {
   updatedAt: string;
 };
 
-type EventDocument = Omit<EventInput, "startsAt"> & {
+type EventDocument = Omit<EventInput, "startsAt" | "skillIds"> & {
   startsAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  skillIds?: string[];
+};
+
+type EventRegistrationDocument = {
+  name: string;
+  email: string;
+  emailNormalized?: string;
+  phone: string;
+  eventId?: string;
+  eventName: string;
+  eventPrice?: number;
+  createdAt: Date;
+  willPerform?: boolean;
+  skillNames?: string[];
+};
+
+export type ManagedEventRegistration = {
+  name: string;
+  email: string;
+  phone: string;
+  eventName: string;
+  createdAt: string;
+  eventPrice: number;
+  willPerform: boolean;
+  skillNames: string[];
 };
 
 function getEventCollection(client: NonNullable<Awaited<ReturnType<typeof getMongoClient>>>) {
   const databaseName = process.env.MONGODB_DB?.trim();
   return client.db(databaseName || undefined).collection<EventDocument>("events");
+}
+
+function formatIndiaCalendarDate(date: Date): string {
+  const parts: Record<string, string> = {};
+  for (const { type, value } of new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date)) {
+    parts[type] = value;
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 function serializeEvent(event: WithId<EventDocument>): ManagedEvent {
@@ -46,6 +85,7 @@ function serializeEvent(event: WithId<EventDocument>): ManagedEvent {
     capacity: event.capacity,
     organizer: event.organizer,
     status: event.status,
+    skillIds: event.skillIds ?? [],
     createdAt: event.createdAt.toISOString(),
     updatedAt: event.updatedAt.toISOString(),
   };
@@ -65,6 +105,7 @@ export function parseEventInput(value: unknown):
   const startsAt = typeof body.startsAt === "string" ? body.startsAt : "";
   const location = typeof body.location === "string" ? body.location.trim() : "";
   const organizer = typeof body.organizer === "string" ? body.organizer.trim() : "";
+  const skillIds = body.skillIds === undefined ? [] : body.skillIds;
   const price = body.price;
   const capacity = body.capacity;
   const status = body.status;
@@ -78,8 +119,12 @@ export function parseEventInput(value: unknown):
   if (!type || type.length > 60) {
     return { success: false, error: "Enter an event type of up to 60 characters." };
   }
-  if (!startsAt || !Number.isFinite(new Date(startsAt).getTime())) {
+  const eventDate = new Date(startsAt);
+  if (!startsAt || !Number.isFinite(eventDate.getTime())) {
     return { success: false, error: "Enter a valid event date and time." };
+  }
+  if (formatIndiaCalendarDate(eventDate) < formatIndiaCalendarDate(new Date())) {
+    return { success: false, error: "Event date cannot be before today." };
   }
   if (!location || location.length > 240) {
     return { success: false, error: "Enter an event location of up to 240 characters." };
@@ -99,6 +144,13 @@ export function parseEventInput(value: unknown):
   if (status !== "published" && status !== "draft") {
     return { success: false, error: "Choose whether the event should be published or saved as a draft." };
   }
+  if (
+    !Array.isArray(skillIds) ||
+    skillIds.length > 30 ||
+    !skillIds.every((id) => typeof id === "string" && /^[\da-f]{24}$/i.test(id))
+  ) {
+    return { success: false, error: "Choose valid event skills." };
+  }
 
   return {
     success: true,
@@ -112,6 +164,7 @@ export function parseEventInput(value: unknown):
       capacity,
       organizer,
       status,
+      skillIds: [...new Set(skillIds.map((id) => (id as string).toLowerCase()))],
     },
   };
 }
@@ -141,6 +194,18 @@ export async function listUpcomingPublishedEvents(): Promise<ManagedEvent[] | nu
     .sort({ startsAt: 1 })
     .toArray();
   return events.map(serializeEvent);
+}
+
+export async function getUpcomingPublishedEvent(id: string): Promise<ManagedEvent | null | undefined> {
+  const client = await getMongoClient();
+  if (!client) return null;
+
+  const event = await getEventCollection(client).findOne({
+    _id: new ObjectId(id),
+    status: "published",
+    startsAt: { $gte: new Date() },
+  });
+  return event ? serializeEvent(event) : undefined;
 }
 
 export async function createEvent(input: EventInput): Promise<ManagedEvent | null> {
@@ -177,12 +242,111 @@ export async function updateEvent(
   return updated ? serializeEvent(updated) : undefined;
 }
 
-export async function deleteEvent(id: string): Promise<boolean | null> {
+export async function deleteEvent(
+  id: string,
+): Promise<"deleted" | "not-found" | "has-registrations" | null> {
   const client = await getMongoClient();
   if (!client) return null;
 
-  const result = await getEventCollection(client).deleteOne({ _id: new ObjectId(id) });
-  return result.deletedCount === 1;
+  const databaseName = process.env.MONGODB_DB?.trim();
+  const database = client.db(databaseName || undefined);
+  const events = getEventCollection(client);
+  const objectId = new ObjectId(id);
+  const event = await events.findOne({ _id: objectId });
+  if (!event) return "not-found";
+
+  const registration = await database
+    .collection<EventRegistrationDocument>("artistRegistrations")
+    .findOne(
+      {
+        $or: [
+          { eventId: id },
+          { eventName: event.title, eventId: { $exists: false } },
+        ],
+      },
+      { projection: { _id: 1 } },
+    );
+  if (registration) return "has-registrations";
+
+  const result = await events.deleteOne({ _id: objectId });
+  return result.deletedCount === 1 ? "deleted" : "not-found";
+}
+
+export async function getAdminEventRegistrations(
+  id: string,
+): Promise<{ registrations: ManagedEventRegistration[]; totalIncome: number } | null | undefined> {
+  const client = await getMongoClient();
+  if (!client) return null;
+
+  const databaseName = process.env.MONGODB_DB?.trim();
+  const database = client.db(databaseName || undefined);
+  const event = await getEventCollection(client).findOne({ _id: new ObjectId(id) });
+  if (!event) return undefined;
+  const records = await database
+    .collection<EventRegistrationDocument>("artistRegistrations")
+    .find({
+      $or: [
+        { eventId: id },
+        { eventName: event.title, eventId: { $exists: false } },
+      ],
+    })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  const registrations = records.map((registration) => ({
+    name: registration.name,
+    email: (registration.emailNormalized || registration.email).trim().toLowerCase(),
+    phone: registration.phone,
+    eventName: registration.eventName,
+    createdAt: registration.createdAt.toISOString(),
+    eventPrice: typeof registration.eventPrice === "number" && Number.isFinite(registration.eventPrice)
+      ? registration.eventPrice
+      : event.price,
+    willPerform: registration.willPerform !== false,
+    skillNames: registration.skillNames ?? [],
+  }));
+
+  return {
+    registrations,
+    totalIncome: registrations.reduce((total, registration) => total + registration.eventPrice, 0),
+  };
+}
+
+export async function setEventRegistrationPerformance(
+  id: string,
+  email: string,
+  willPerform: boolean,
+): Promise<boolean | null> {
+  const client = await getMongoClient();
+  if (!client) return null;
+
+  const event = await getEventCollection(client).findOne({ _id: new ObjectId(id) });
+  if (!event) return false;
+  const databaseName = process.env.MONGODB_DB?.trim();
+  const result = await client
+    .db(databaseName || undefined)
+    .collection<EventRegistrationDocument>("artistRegistrations")
+    .updateMany(
+      {
+        $and: [
+          {
+            $or: [
+              { eventId: id },
+              { eventName: event.title, eventId: { $exists: false } },
+            ],
+          },
+          {
+            $or: [
+              { emailNormalized: email.trim().toLowerCase() },
+              { email: email.trim().toLowerCase() },
+            ],
+          },
+        ],
+      },
+      { $set: { willPerform } },
+      { collation: { locale: "en", strength: 2 } },
+    );
+  return result.matchedCount > 0;
 }
 
 export function isValidEventId(id: string): boolean {

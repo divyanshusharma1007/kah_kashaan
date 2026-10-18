@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
 import { createEvent, listAdminEvents, parseEventInput } from "@/services/events";
+import { getArtistSkillsByIds } from "@/services/artist-skills";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -40,6 +41,11 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return jsonResponse({ error: parsed.error }, 400);
 
   try {
+    const skills = await getArtistSkillsByIds(parsed.data.skillIds);
+    if (!skills) return jsonResponse({ error: "Event skills are temporarily unavailable." }, 503);
+    if (skills.length !== parsed.data.skillIds.length) {
+      return jsonResponse({ error: "One or more selected skills are no longer available. Refresh and try again." }, 400);
+    }
     const event = await createEvent(parsed.data);
     if (!event) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);
     return jsonResponse({ event }, 201);

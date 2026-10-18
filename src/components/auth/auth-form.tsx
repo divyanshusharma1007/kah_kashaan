@@ -11,6 +11,7 @@ const labelClass = "text-xs uppercase tracking-[0.16em] text-[#e7d7aa]";
 const authErrorMessages: Record<string, string> = {
   account_exists: "An account already exists for this Google email. Please log in instead.",
   account_not_found: "We couldn't find an account for this Google email. Please sign up first.",
+  artist_offline: "Your artist account is currently offline. Please contact the event team for assistance.",
   access_denied: "Google sign-in was cancelled.",
   auth_failed: "Google sign-in could not be completed. Please try again.",
   google_not_configured: "Google sign-in is not configured yet. Please contact the site administrator.",
@@ -23,11 +24,13 @@ export function AuthForm({
   authError,
   verificationError,
   verified = false,
+  returnTo,
 }: {
   mode: "login" | "signup";
   authError?: string;
   verificationError?: string;
   verified?: boolean;
+  returnTo?: string;
 }) {
   const router = useRouter();
   const { storageError, sessionError, refreshSession } = useAuth();
@@ -82,7 +85,13 @@ export function AuthForm({
         return;
       }
       await refreshSession();
-      router.replace("/dashboard");
+      const destination = returnTo &&
+        returnTo.startsWith("/events/") &&
+        !returnTo.startsWith("//") &&
+        !returnTo.includes("\\")
+        ? returnTo
+        : "/dashboard";
+      router.replace(destination);
     } catch (cause) {
       console.error("[auth] browser_form_submission_error", {
         mode,
@@ -134,10 +143,10 @@ export function AuthForm({
 
         <section className="mx-auto w-full max-w-md rounded-3xl border border-[#d9af57]/20 bg-[#10100f] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.4)] sm:p-9">
           <div className="flex rounded-full border border-[#d9af57]/15 bg-[#090909] p-1">
-            <Link aria-current={mode === "login" ? "page" : undefined} className={`flex-1 rounded-full px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-[0.12em] transition ${mode === "login" ? "bg-[#d9af57] text-[#121212]" : "text-[#c9bea2] hover:text-white"}`} href="/login">
+            <Link aria-current={mode === "login" ? "page" : undefined} className={`flex-1 rounded-full px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-[0.12em] transition ${mode === "login" ? "bg-[#d9af57] text-[#121212]" : "text-[#c9bea2] hover:text-white"}`} href={returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login"}>
               Log in
             </Link>
-            <Link aria-current={mode === "signup" ? "page" : undefined} className={`flex-1 rounded-full px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-[0.12em] transition ${mode === "signup" ? "bg-[#d9af57] text-[#121212]" : "text-[#c9bea2] hover:text-white"}`} href="/signup">
+            <Link aria-current={mode === "signup" ? "page" : undefined} className={`flex-1 rounded-full px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-[0.12em] transition ${mode === "signup" ? "bg-[#d9af57] text-[#121212]" : "text-[#c9bea2] hover:text-white"}`} href={returnTo ? `/signup?returnTo=${encodeURIComponent(returnTo)}` : "/signup"}>
               Sign up
             </Link>
           </div>

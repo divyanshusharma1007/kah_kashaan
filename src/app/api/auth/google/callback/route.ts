@@ -25,6 +25,7 @@ type UserDocument = {
   createdAt?: Date;
   emailVerified?: boolean;
   emailVerifiedAt?: Date;
+  isActive?: boolean;
 };
 
 const CALLBACK_PATH = "/api/auth/google/callback";
@@ -189,7 +190,7 @@ export async function GET(request: NextRequest) {
     const users = client.db(databaseName || undefined).collection<UserDocument>("users");
     const user = await users.findOne(
       { email },
-      { collation: EMAIL_COLLATION, projection: { email: 1, name: 1, role: 1 } },
+      { collation: EMAIL_COLLATION, projection: { email: 1, name: 1, role: 1, isActive: 1 } },
     );
     logger.info("account_lookup_completed", { intent, accountFound: Boolean(user) });
 
@@ -209,6 +210,7 @@ export async function GET(request: NextRequest) {
         emailNormalized: email,
         name,
         role: "artist",
+        isActive: true,
         provider: "google",
         googleId: claims.sub,
         createdAt: new Date(),
@@ -238,6 +240,10 @@ export async function GET(request: NextRequest) {
     if (!user) {
       logger.info("login_rejected_account_not_found", { intent });
       return response(authError(request, "account_not_found", intent));
+    }
+    if (user.role === "artist" && user.isActive === false) {
+      logger.info("login_rejected_artist_offline", { intent });
+      return response(authError(request, "artist_offline", intent));
     }
     await users.updateOne(
       { email, emailVerified: { $ne: true } },

@@ -17,6 +17,8 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     (event.capacity === null || typeof event.capacity === "number") &&
     typeof event.organizer === "string" &&
     (event.status === "published" || event.status === "draft") &&
+    Array.isArray(event.skillIds) &&
+    event.skillIds.every((id) => typeof id === "string") &&
     typeof event.createdAt === "string" &&
     typeof event.updatedAt === "string";
 }
@@ -193,6 +195,12 @@ export function AdminEventsDashboard() {
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
+                <Link
+                  className="inline-flex min-h-9 items-center rounded-lg border border-[#d9af57]/20 px-3 text-xs text-[#f0ddab] transition hover:border-[#d9af57]/45"
+                  href={`/dashboard/events/${encodeURIComponent(event.id)}/overview`}
+                >
+                  Overview
+                </Link>
                 <Link
                   className="inline-flex min-h-9 items-center rounded-lg border border-white/[0.1] px-3 text-xs text-[#d8c8a2] transition hover:border-[#d9af57]/35"
                   href={`/dashboard/events/${encodeURIComponent(event.id)}`}
