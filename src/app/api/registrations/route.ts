@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       phone: profile.phone,
       skillNames: skills.map((skill) => skill.name),
     };
-    const result = await createArtistRegistration(registration);
+    const result = await createArtistRegistration(registration, profile.skillIds);
     if (result === "database-unavailable") {
       return jsonResponse({ error: "Event registration is temporarily unavailable. Please try again later." }, 503);
     }
@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
     }
     if (result === "event-skills-unavailable") {
       return jsonResponse({ error: "Select only skills available for this event." }, 400);
+    }
+    if (result === "artist-not-qualified") {
+      return jsonResponse({ error: "Your profile does not include any of this event's required skills." }, 403);
     }
     return jsonResponse({ success: true }, 201);
   } catch (error) {

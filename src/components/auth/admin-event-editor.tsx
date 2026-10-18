@@ -294,9 +294,9 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
               </div>
             </fieldset>
             <fieldset className="sm:col-span-2">
-              <legend className="mb-2 text-xs font-medium text-[#cbbd9f]">Skills for this event</legend>
+              <legend className="mb-2 text-xs font-medium text-[#cbbd9f]">Required skills for this event</legend>
               <p className="mb-3 text-xs leading-5 text-[#827864]">
-                Choose the skills artists can select when registering. No selection keeps all skills available.
+                Artists must have at least one selected skill on their profile to register. No selection means there are no skill requirements.
               </p>
               {skillsLoading ? (
                 <p className="rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-4 text-sm text-[#a99b7e]" role="status">

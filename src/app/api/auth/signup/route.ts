@@ -16,6 +16,7 @@ type UserDocument = {
   passwordHash?: string;
   provider?: "password";
   createdAt?: Date;
+  isActive?: boolean;
   emailVerified?: boolean;
   emailVerificationTokenHash?: string;
   emailVerificationExpiresAt?: Date;

@@ -225,13 +225,27 @@ export async function updateArtistProfile(
 
 export async function createArtistRegistration(
   input: ArtistRegistrationInput,
-): Promise<"created" | "already-registered" | "database-unavailable" | "event-unavailable" | "event-skills-unavailable"> {
+  artistSkillIds: string[],
+): Promise<
+  | "created"
+  | "already-registered"
+  | "database-unavailable"
+  | "event-unavailable"
+  | "event-skills-unavailable"
+  | "artist-not-qualified"
+> {
   const events = await listUpcomingPublishedEvents();
   if (events === null) return "database-unavailable";
   const event = input.eventId
     ? events.find((candidate) => candidate.id === input.eventId && candidate.title === input.eventName)
     : events.find((candidate) => candidate.title === input.eventName);
   if (!event) return "event-unavailable";
+  if (
+    event.skillIds.length > 0 &&
+    !event.skillIds.some((skillId) => artistSkillIds.includes(skillId))
+  ) {
+    return "artist-not-qualified";
+  }
   if (
     event.skillIds.length > 0 &&
     (input.skillIds ?? []).some((skillId) => !event.skillIds.includes(skillId))
@@ -273,7 +287,7 @@ export async function listArtistDirectory(): Promise<ArtistDirectoryEntry[] | nu
     database
       .collection<ArtistAccountDocument>("users")
       .find({ role: "artist", emailVerified: { $ne: false } })
-      .project({
+      .project<ArtistAccountDocument & { _id: ObjectId }>({
         email: 1,
         emailNormalized: 1,
         name: 1,
@@ -308,21 +322,21 @@ export async function listArtistDirectory(): Promise<ArtistDirectoryEntry[] | nu
     account.skillIds?.filter((id): id is string => typeof id === "string" && /^[\da-f]{24}$/i.test(id)) || [],
   ))];
   const artistSkills = artistSkillIds.length > 0
-    ? await database.collection<{ name: string }>("artistSkills")
+    ? await database.collection<{ _id: ObjectId; name: string }>("artistSkills")
         .find({ _id: { $in: artistSkillIds.map((id) => new ObjectId(id)) } })
-        .project<{ name: string }>({ name: 1 })
+        .project<{ _id: ObjectId; name: string }>({ name: 1 })
         .toArray()
     : [];
   const artistSkillNames = new Map(artistSkills.map((skill) => [skill._id.toHexString(), skill.name]));
   const events = eventIds.length > 0 || legacyEventNames.length > 0
-    ? await database.collection<{ title: string; startsAt: Date }>("events")
+    ? await database.collection<{ _id: ObjectId; title: string; startsAt: Date }>("events")
         .find({
           $or: [
             ...(eventIds.length > 0 ? [{ _id: { $in: eventIds.map((id) => new ObjectId(id)) } }] : []),
             ...(legacyEventNames.length > 0 ? [{ title: { $in: legacyEventNames } }] : []),
           ],
         })
-        .project<{ title: string; startsAt: Date }>({ title: 1, startsAt: 1 })
+        .project<{ _id: ObjectId; title: string; startsAt: Date }>({ title: 1, startsAt: 1 })
         .toArray()
     : [];
   const eventById = new Map(events.map((event) => [event._id.toHexString(), event]));
@@ -414,14 +428,14 @@ export async function listRegistrationsForArtist(
     .filter((registration) => !registration.eventId)
     .map((registration) => registration.eventName))];
   const events = eventIds.length > 0 || legacyEventNames.length > 0
-    ? await database.collection<{ title: string; startsAt: Date }>("events")
+    ? await database.collection<{ _id: ObjectId; title: string; startsAt: Date }>("events")
         .find({
           $or: [
             ...(eventIds.length > 0 ? [{ _id: { $in: eventIds.map((id) => new ObjectId(id)) } }] : []),
             ...(legacyEventNames.length > 0 ? [{ title: { $in: legacyEventNames } }] : []),
           ],
         })
-        .project<{ title: string; startsAt: Date }>({ title: 1, startsAt: 1 })
+        .project<{ _id: ObjectId; title: string; startsAt: Date }>({ title: 1, startsAt: 1 })
         .toArray()
     : [];
   const eventById = new Map(events.map((event) => [event._id.toHexString(), event]));

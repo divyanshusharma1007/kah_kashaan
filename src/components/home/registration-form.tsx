@@ -20,6 +20,7 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
   const { user, ready } = useAuth();
   const [skills, setSkills] = useState<ArtistSkill[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [profileSkillIds, setProfileSkillIds] = useState<string[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,6 +32,9 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
   const visibleSkills = selectedChoice?.skillIds.length
     ? skills.filter((skill) => selectedChoice.skillIds.includes(skill.id))
     : skills;
+  const isEligibleForSelectedEvent =
+    !selectedChoice?.skillIds.length ||
+    selectedChoice.skillIds.some((skillId) => profileSkillIds.includes(skillId));
 
   useEffect(() => {
     if (!signedInArtist) return;
@@ -71,11 +75,13 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
         }
         if (active) {
           setSkills(availableSkills);
-          setSelectedSkillIds(Array.isArray(profile.skillIds)
+          const savedSkillIds = Array.isArray(profile.skillIds)
             ? profile.skillIds.filter((id): id is string =>
                 typeof id === "string" && availableSkills.some((skill) => skill.id === id),
               )
-            : []);
+            : [];
+          setProfileSkillIds(savedSkillIds);
+          setSelectedSkillIds(savedSkillIds);
         }
       })
       .catch((cause: unknown) => {
@@ -202,7 +208,7 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
       <fieldset className="mt-5" disabled={loadingSkills || submitting}>
         <legend className="text-xs font-medium uppercase tracking-[0.16em] text-[#e7d7aa]">What would you like to perform?</legend>
         <p className="mb-3 mt-2 text-xs leading-5 text-[#a99b7e]">
-          Select one or more skills for the event. Your profile selections are preselected, and you can change them here.
+          Select the skills you plan to perform. Your profile skills are preselected; events with requirements need at least one required skill saved on your profile.
         </p>
         {loadingSkills ? (
           <p className="rounded-xl border border-white/[0.08] p-4 text-sm text-[#a99b7e]" role="status">Loading performance skills...</p>
@@ -215,11 +221,16 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
           />
         )}
       </fieldset>
+      {!loadingSkills && !error && selectedChoice?.skillIds.length && !isEligibleForSelectedEvent && (
+        <p className="mt-4 rounded-xl border border-amber-400/25 bg-amber-950/20 p-4 text-sm leading-6 text-amber-100" role="status">
+          This event requires at least one listed skill in your artist profile. Update your profile skills to register.
+        </p>
+      )}
       {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">{error}</p>}
       <p className="mt-5 text-xs leading-5 text-[#a99b7e]">
         A phone number is optional. You can add your contact details and performance skills to your profile at any time.
       </p>
-      <button className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto" disabled={submitting || loadingSkills || (eventNames.length > 1 && !eventName)} type="submit">
+      <button className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto" disabled={submitting || loadingSkills || !isEligibleForSelectedEvent || (eventNames.length > 1 && !eventName)} type="submit">
         {submitting ? "Registering..." : "Register for event"}
       </button>
     </form>
