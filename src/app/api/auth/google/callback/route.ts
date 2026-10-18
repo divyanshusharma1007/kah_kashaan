@@ -43,6 +43,25 @@ function authError(request: NextRequest, reason: string, intent: "login" | "sign
   return NextResponse.redirect(new URL(`/${page}?authError=${encodeURIComponent(reason)}`, request.url));
 }
 
+function dashboardUrl(): URL {
+  const configuredUrl = process.env.APP_URL?.trim() || process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (!configuredUrl) {
+    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be configured for post-login redirects.");
+  }
+
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(configuredUrl);
+  } catch {
+    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be a valid absolute URL.");
+  }
+  if (baseUrl.protocol !== "https:" && baseUrl.hostname !== "localhost") {
+    throw new Error("The public app URL must use HTTPS outside localhost.");
+  }
+
+  return new URL("/dashboard", baseUrl);
+}
+
 export async function GET(request: NextRequest) {
   const logger = createGoogleAuthLogger();
   const state = request.nextUrl.searchParams.get("state");
@@ -198,7 +217,7 @@ export async function GET(request: NextRequest) {
       });
       logger.info("signup_succeeded", { intent });
       const sessionUser: SessionUser = { name, email, role: "artist", provider: "google" };
-      const result = response(NextResponse.redirect(new URL("/dashboard", request.url)));
+      const result = response(NextResponse.redirect(dashboardUrl()));
       result.cookies.set(SESSION_COOKIE_NAME, createSessionToken(sessionUser), {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -236,8 +255,7 @@ export async function GET(request: NextRequest) {
       role: user.role,
       provider: "google" as const,
     };
-    const destination = new URL("/dashboard", request.url);
-    const result = response(NextResponse.redirect(destination));
+    const result = response(NextResponse.redirect(dashboardUrl()));
     result.cookies.set(SESSION_COOKIE_NAME, createSessionToken(sessionUser), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
