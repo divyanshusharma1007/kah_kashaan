@@ -162,7 +162,7 @@ export function ArtistProfile() {
       }
       setPhotoFileId(result.photoFileId);
       setPhotoVersion(String(Date.now()));
-      setMessage("Your profile photo has been saved privately to Google Drive.");
+      setMessage("Your profile photo has been saved securely.");
     } catch (cause) {
       console.error("Could not upload artist profile photo.", cause);
       setError(cause instanceof Error ? cause.message : "Your profile photo could not be uploaded.");
@@ -214,7 +214,7 @@ export function ArtistProfile() {
                   type="file"
                 />
               </label>
-              <p className="mt-2 text-xs leading-5 text-[#827864]">JPEG, PNG, or WebP · up to 5 MB. Your photo is stored privately in Google Drive.</p>
+              <p className="mt-2 text-xs leading-5 text-[#827864]">JPEG, PNG, or WebP · up to 5 MB. Your photo is stored privately using ImageKit, with Cloudinary as a fallback.</p>
               {photoUploading && <p className="mt-2 text-xs text-[#f0ddab]" role="status">Uploading photo...</p>}
             </div>
           </div>

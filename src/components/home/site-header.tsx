@@ -72,6 +72,9 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
               {item.label}
             </Link>
           ))}
+          <Link className="transition hover:text-[#f9e8a0]" href="/artists">
+            Artists
+          </Link>
         </div>
 
         {/* Desktop account and event actions */}
@@ -141,6 +144,13 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
                 {item.label}
               </Link>
             ))}
+            <Link
+            href="/artists"
+            onClick={() => setMobileMenuOpen(false)}
+            className="py-2 transition hover:text-[#f9e8a0]"
+            >
+            Artists
+            </Link>
             <Link
               href={accountHref}
               onClick={() => setMobileMenuOpen(false)}

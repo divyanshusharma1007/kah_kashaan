@@ -4,7 +4,13 @@ import {
   getArtistProfile,
   updateArtistProfilePhoto,
 } from "@/services/artist-directory";
-import { downloadArtistPhoto, isGoogleDriveConfigured, uploadArtistPhoto } from "@/services/google-drive";
+import {
+  ArtistPhotoStorageError,
+  downloadArtistPhoto,
+  getMissingArtistPhotoStorageConfiguration,
+  uploadArtistPhoto,
+} from "@/services/artist-photo-storage";
+import { ImageKitPhotoError } from "@/services/imagekit";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -31,8 +37,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Could not load artist profile photo.", error);
-    return jsonResponse({ error: "Could not load your profile photo. Please try again." }, 503);
+    if (error instanceof ArtistPhotoStorageError || error instanceof ImageKitPhotoError) {
+      console.error("Could not load artist profile photo from storage.", error.message);
+      return jsonResponse({ error: error.message }, 503);
+    }
+    console.error("Could not load artist profile photo.", {
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return jsonResponse({ error: "Could not load your profile photo. Please check image storage setup and try again." }, 503);
   }
 }
 
@@ -42,8 +54,11 @@ export async function POST(request: NextRequest) {
   if (request.headers.get("origin") !== request.nextUrl.origin) {
     return jsonResponse({ error: "Invalid profile photo upload request." }, 403);
   }
-  if (!isGoogleDriveConfigured()) {
-    return jsonResponse({ error: "Google Drive photo storage is not configured yet." }, 503);
+  const missingPhotoStorageConfiguration = getMissingArtistPhotoStorageConfiguration();
+  if (missingPhotoStorageConfiguration.length > 0) {
+    return jsonResponse({
+      error: `Configure ImageKit (IMAGEKIT_PRIVATE_KEY and IMAGEKIT_URL_ENDPOINT) or Cloudinary (CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET) in the server environment, then restart the app. Missing: ${missingPhotoStorageConfiguration.join(", ")}.`,
+    }, 503);
   }
 
   let form: FormData;
@@ -60,13 +75,19 @@ export async function POST(request: NextRequest) {
   try {
     const profile = await getArtistProfile(user.email);
     if (!profile) return jsonResponse({ error: "Your profile is temporarily unavailable." }, 503);
-    const photoFileId = await uploadArtistPhoto(photo, profile.photoFileId ?? undefined);
+    const photoFileId = await uploadArtistPhoto(photo, user.email);
     const updated = await updateArtistProfilePhoto(user.email, photoFileId);
     if (updated === null) return jsonResponse({ error: "Your profile is temporarily unavailable." }, 503);
     if (!updated) return jsonResponse({ error: "Your artist profile could not be found." }, 404);
     return jsonResponse({ success: true, photoFileId });
   } catch (error) {
-    console.error("Could not upload artist profile photo.", error);
-    return jsonResponse({ error: "Could not upload your profile photo. Check Google Drive setup and try again." }, 503);
+    if (error instanceof ArtistPhotoStorageError || error instanceof ImageKitPhotoError) {
+      console.error("Could not upload artist profile photo to storage.", error.message);
+      return jsonResponse({ error: error.message }, 503);
+    }
+    console.error("Could not upload artist profile photo.", {
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return jsonResponse({ error: "Could not upload your profile photo. Check ImageKit and Cloudinary setup and try again." }, 503);
   }
 }

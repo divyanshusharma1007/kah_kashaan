@@ -26,6 +26,8 @@ function isArtist(value: unknown): value is ArtistDirectoryEntry {
   (artist.photoFileId === null || typeof artist.photoFileId === "string") &&
   typeof artist.accountExists === "boolean" &&
   typeof artist.isActive === "boolean" &&
+  (artist.role === "artist" || artist.role === "admin" || artist.role === "guest") &&
+  (artist.featuredStatus === "not-requested" || artist.featuredStatus === "requested" || artist.featuredStatus === "featured") &&
   Array.isArray(artist.registrations) &&
   artist.registrations.every((registration) =>
     registration &&
@@ -38,10 +40,15 @@ function isArtist(value: unknown): value is ArtistDirectoryEntry {
 export function AdminArtistDirectory() {
   const [artists, setArtists] = useState<ArtistDirectoryEntry[]>([]);
   const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [featureFilter, setFeatureFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("name");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [expandedEmail, setExpandedEmail] = useState("");
   const [updatingEmail, setUpdatingEmail] = useState("");
+  const [historyQueryByEmail, setHistoryQueryByEmail] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -117,41 +124,147 @@ export function AdminArtistDirectory() {
     }
   }
 
+  async function updateArtistRole(artist: ArtistDirectoryEntry, role: "admin" | "artist") {
+    setUpdatingEmail(artist.email);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/artists", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: artist.email, role }),
+      });
+      let result: unknown;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error("The account service returned an invalid response.");
+      }
+      if (!response.ok) {
+        const message =
+          result && typeof result === "object" && "error" in result && typeof result.error === "string"
+            ? result.error
+            : role === "admin" ? "Could not grant administrator access." : "Could not revoke administrator access.";
+        throw new Error(message);
+      }
+      setArtists((current) => current.map((item) =>
+        item.email === artist.email ? { ...item, role } : item,
+      ));
+      setMessage(role === "admin"
+        ? `${artist.name} is now an administrator. They need to sign in again to open the admin workspace.`
+        : `${artist.name}'s administrator access has been revoked.`);
+    } catch (cause) {
+      console.error("Could not update artist administrator role.", cause);
+      setError(cause instanceof Error ? cause.message : "Could not update administrator access.");
+    } finally {
+      setUpdatingEmail("");
+    }
+  }
+
+  async function updateArtistFeature(artist: ArtistDirectoryEntry, featured: boolean) {
+    setUpdatingEmail(artist.email);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/artists", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: artist.email, featured }),
+      });
+      let result: unknown;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error("The artist account service returned an invalid response.");
+      }
+      if (!response.ok) {
+        const message =
+          result && typeof result === "object" && "error" in result && typeof result.error === "string"
+            ? result.error
+            : "Could not update artist visibility.";
+        throw new Error(message);
+      }
+      setArtists((current) => current.map((item) =>
+        item.email === artist.email
+          ? { ...item, featuredStatus: featured ? "featured" : "not-requested" }
+          : item,
+      ));
+      setMessage(featured
+        ? `${artist.name} is now featured on the public artist directory.`
+        : `${artist.name} is no longer visible in the public artist directory.`);
+    } catch (cause) {
+      console.error("Could not update featured artist visibility.", cause);
+      setError(cause instanceof Error ? cause.message : "Could not update artist visibility.");
+    } finally {
+      setUpdatingEmail("");
+    }
+  }
+
   const filteredArtists = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return artists;
-    return artists.filter((artist) =>
-      `${artist.name} ${artist.email} ${artist.phone} ${artist.registrations.map((registration) => registration.eventName).join(" ")}`
-        .toLowerCase()
-        .includes(normalizedQuery),
-    );
-  }, [artists, query]);
+    return artists
+      .filter((artist) => roleFilter === "all" || artist.role === roleFilter)
+      .filter((artist) => featureFilter === "all" || artist.featuredStatus === featureFilter)
+      .filter((artist) => !normalizedQuery ||
+        `${artist.name} ${artist.email} ${artist.phone} ${artist.address} ${artist.city} ${artist.state} ${artist.skills.join(" ")} ${artist.bio} ${artist.registrations.map((registration) => registration.eventName).join(" ")}`
+          .toLowerCase()
+          .includes(normalizedQuery))
+      .sort((left, right) => sortOrder === "recent"
+        ? (right.registrations[0]?.createdAt ?? "").localeCompare(left.registrations[0]?.createdAt ?? "")
+        : left.name.localeCompare(right.name));
+  }, [artists, query, roleFilter, featureFilter, sortOrder]);
 
   return (
     <section aria-labelledby="artist-directory-heading">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-[var(--font-display)] text-3xl text-[#fff5d9] sm:text-4xl" id="artist-directory-heading">
-            Artist directory
+            Artist &amp; admin directory
           </h1>
           <p className="mt-1 text-xs text-[#827864]">
-            {artists.length} {artists.length === 1 ? "artist" : "artists"} registered
+            {artists.length} {artists.length === 1 ? "profile" : "profiles"} and event history
           </p>
         </div>
-        <label className="sr-only" htmlFor="artist-search">Search artists</label>
-        <input
-          className={inputClass}
-          id="artist-search"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search artists..."
-          type="search"
-          value={query}
-        />
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="sr-only" htmlFor="artist-search">Search profiles</label>
+          <input
+            className={inputClass}
+            id="artist-search"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search people, skills, events..."
+            type="search"
+            value={query}
+          />
+          <label className="sr-only" htmlFor="artist-role-filter">Filter by account type</label>
+          <select className={inputClass} id="artist-role-filter" onChange={(event) => setRoleFilter(event.target.value)} value={roleFilter}>
+            <option value="all">All account types</option>
+            <option value="artist">Artists</option>
+            <option value="admin">Administrators</option>
+            <option value="guest">Event registrants</option>
+          </select>
+          <label className="sr-only" htmlFor="artist-feature-filter">Filter by featured status</label>
+          <select className={inputClass} id="artist-feature-filter" onChange={(event) => setFeatureFilter(event.target.value)} value={featureFilter}>
+            <option value="all">All feature requests</option>
+            <option value="requested">Feature requested</option>
+            <option value="featured">Featured publicly</option>
+            <option value="not-requested">Not featured</option>
+          </select>
+          <label className="sr-only" htmlFor="artist-sort">Sort profiles</label>
+          <select className={inputClass} id="artist-sort" onChange={(event) => setSortOrder(event.target.value)} value={sortOrder}>
+            <option value="name">Sort by name</option>
+            <option value="recent">Recent event activity</option>
+          </select>
+        </div>
       </div>
 
       {error && (
         <p className="mt-5 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">
           {error}
+        </p>
+      )}
+      {message && (
+        <p className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-4 text-sm text-emerald-100" role="status">
+          {message}
         </p>
       )}
 
@@ -213,19 +326,63 @@ export function AdminArtistDirectory() {
                       {artist.registrations.length} {artist.registrations.length === 1 ? "event" : "events"}
                     </p>
                     <span className={`mt-1 inline-flex rounded-full px-2 py-1 text-[9px] uppercase tracking-[0.12em] ${
-                      artist.isActive ? "bg-emerald-950/30 text-emerald-200" : "bg-red-950/30 text-red-200"
+                      artist.role === "admin"
+                        ? "bg-violet-950/40 text-violet-200"
+                        : artist.isActive
+                          ? "bg-emerald-950/30 text-emerald-200"
+                          : "bg-red-950/30 text-red-200"
                     }`}>
-                      {artist.accountExists ? (artist.isActive ? "Online" : "Offline") : "No account"}
+                      {artist.role === "admin"
+                        ? "Administrator"
+                        : artist.accountExists
+                          ? artist.isActive ? "Online artist" : "Offline artist"
+                          : "Registration only"}
                     </span>
                   </div>
-                  <label className={`flex items-center gap-2 text-xs ${artist.accountExists ? "text-[#cbbd9f]" : "text-[#746d5b]"}`}>
+                  {artist.role === "artist" && (
+                    <button
+                      className="min-h-9 rounded-lg border border-violet-300/20 px-3 text-xs text-violet-200 transition hover:border-violet-300/50 hover:bg-violet-950/30 disabled:opacity-50"
+                      disabled={updatingEmail === artist.email}
+                      onClick={() => void updateArtistRole(artist, "admin")}
+                      type="button"
+                    >
+                      {updatingEmail === artist.email ? "Updating..." : "Make administrator"}
+                    </button>
+                  )}
+                  {artist.role === "admin" && (
+                    <button
+                      className="min-h-9 rounded-lg border border-red-300/20 px-3 text-xs text-red-200 transition hover:border-red-300/50 hover:bg-red-950/30 disabled:opacity-50"
+                      disabled={updatingEmail === artist.email}
+                      onClick={() => void updateArtistRole(artist, "artist")}
+                      type="button"
+                    >
+                      {updatingEmail === artist.email ? "Updating..." : "Revoke admin"}
+                    </button>
+                  )}
+                  {artist.role === "artist" && (
+                    <button
+                      className="min-h-9 rounded-lg border border-[#d9af57]/20 px-3 text-xs text-[#f0ddab] transition hover:border-[#d9af57]/45 disabled:opacity-50"
+                      disabled={updatingEmail === artist.email}
+                      onClick={() => void updateArtistFeature(artist, artist.featuredStatus !== "featured")}
+                      type="button"
+                    >
+                      {updatingEmail === artist.email
+                        ? "Updating..."
+                        : artist.featuredStatus === "featured"
+                          ? "Remove from website"
+                          : artist.featuredStatus === "requested"
+                            ? "Approve feature request"
+                            : "Feature on website"}
+                    </button>
+                  )}
+                  <label className={`flex items-center gap-2 text-xs ${artist.role === "artist" ? "text-[#cbbd9f]" : "text-[#746d5b]"}`}>
                     <input
                       checked={artist.isActive}
-                      disabled={!artist.accountExists || updatingEmail === artist.email}
+                      disabled={artist.role !== "artist" || updatingEmail === artist.email}
                       onChange={(event) => void updateArtistAccess(artist, event.target.checked)}
                       type="checkbox"
                     />
-                    Allow sign-in
+                    Artist sign-in
                   </label>
                 </div>
               </div>
@@ -235,6 +392,8 @@ export function AdminArtistDirectory() {
                     <section>
                       <h3 className="text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Artist profile</h3>
                       <dl className="mt-3 grid gap-2 text-xs text-[#cbbd9f]">
+                        <div><dt className="inline text-[#827864]">Account type: </dt><dd className="inline capitalize">{artist.role === "guest" ? "Event registrant" : artist.role}</dd></div>
+                        <div><dt className="inline text-[#827864]">Phone: </dt><dd className="inline">{artist.phone || "Not provided"}</dd></div>
                         <div><dt className="inline text-[#827864]">Address: </dt><dd className="inline">{[artist.address, artist.city, artist.state, artist.pinCode].filter(Boolean).join(", ") || "Not provided"}</dd></div>
                         <div><dt className="inline text-[#827864]">Skills: </dt><dd className="inline">{artist.skills.length ? artist.skills.join(", ") : "Not provided"}</dd></div>
                         <div><dt className="inline text-[#827864]">About: </dt><dd className="inline whitespace-pre-wrap">{artist.bio || "Not provided"}</dd></div>
@@ -242,11 +401,28 @@ export function AdminArtistDirectory() {
                     </section>
                     <section>
                       <h3 className="text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Event history</h3>
+                      {artist.registrations.length > 0 && (
+                        <label className="sr-only" htmlFor={`artist-event-history-${artist.email}`}>Filter this artist&apos;s event history</label>
+                      )}
+                      {artist.registrations.length > 0 && (
+                        <input
+                          className="mt-3 min-h-9 w-full rounded-lg border border-white/[0.08] bg-[#10100f] px-3 text-xs text-[#fff5d9] outline-none placeholder:text-[#716954]"
+                          id={`artist-event-history-${artist.email}`}
+                          onChange={(event) => setHistoryQueryByEmail((current) => ({ ...current, [artist.email]: event.target.value }))}
+                          placeholder="Filter event history..."
+                          type="search"
+                          value={historyQueryByEmail[artist.email] ?? ""}
+                        />
+                      )}
                       {artist.registrations.length === 0 ? (
                         <p className="mt-3 text-xs text-[#827864]">No event history yet.</p>
                       ) : (
                         <ul className="mt-3 space-y-3">
-                          {artist.registrations.map((registration, index) => {
+                          {artist.registrations.filter((registration) =>
+                            `${registration.eventName} ${registration.skillNames?.join(" ") ?? ""}`
+                              .toLowerCase()
+                              .includes((historyQueryByEmail[artist.email] ?? "").trim().toLowerCase()),
+                          ).map((registration, index) => {
                             const isPast = Boolean(registration.eventStartsAt && new Date(registration.eventStartsAt).getTime() < Date.now());
                             return (
                               <li className="rounded-lg border border-white/[0.06] p-3" key={`${registration.eventId ?? registration.eventName}-${registration.createdAt}-${index}`}>

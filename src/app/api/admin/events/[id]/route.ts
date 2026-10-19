@@ -22,7 +22,7 @@ function hasValidOrigin(request: NextRequest): boolean {
 }
 
 export async function GET(request: NextRequest, context: EventRouteContext) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   const { id } = await context.params;
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, context: EventRouteContext) {
 }
 
 export async function PUT(request: NextRequest, context: EventRouteContext) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
   if (!hasValidOrigin(request)) return jsonResponse({ error: "Invalid event request." }, 403);
 
@@ -74,7 +74,7 @@ export async function PUT(request: NextRequest, context: EventRouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: EventRouteContext) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
   if (!hasValidOrigin(request)) return jsonResponse({ error: "Invalid event request." }, 403);
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/services/auth-session";
-import { isArtistAccountActive } from "@/services/artist-directory";
+import { isAdminAccountActive, isArtistAccountActive } from "@/services/artist-directory";
 
 function sessionResponse(body: { user: unknown; artistOffline?: boolean } | { error: string }, status = 200) {
   const response = NextResponse.json(body, { status });
@@ -19,6 +19,15 @@ export async function GET(request: NextRequest) {
       if (active === null) return sessionResponse({ error: "Account status could not be checked." }, 503);
       if (!active) {
         const response = sessionResponse({ user: null, artistOffline: true });
+        response.cookies.delete(SESSION_COOKIE_NAME);
+        return response;
+      }
+    }
+    if (user?.role === "admin") {
+      const active = await isAdminAccountActive(user.email);
+      if (active === null) return sessionResponse({ error: "Account status could not be checked." }, 503);
+      if (!active) {
+        const response = sessionResponse({ user: null });
         response.cookies.delete(SESSION_COOKIE_NAME);
         return response;
       }

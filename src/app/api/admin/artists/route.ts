@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
-import { listArtistDirectory, updateArtistAccountStatus } from "@/services/artist-directory";
+import {
+  listArtistDirectory,
+  promoteArtistAccountToAdmin,
+  revokeAdminAccount,
+  setArtistFeaturedStatus,
+  updateArtistAccountStatus,
+} from "@/services/artist-directory";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/services/auth-session";
 
 export async function GET(request: NextRequest) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   try {
@@ -28,7 +35,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
   if (request.headers.get("origin") !== request.nextUrl.origin) {
     return NextResponse.json(
@@ -53,16 +60,50 @@ export async function PATCH(request: NextRequest) {
     );
   }
   const email = "email" in body && typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const role = "role" in body ? body.role : undefined;
   const isActive = "isActive" in body ? body.isActive : undefined;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof isActive !== "boolean") {
+  const featured = "featured" in body ? body.featured : undefined;
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    (role !== undefined && role !== "admin" && role !== "artist") ||
+    (typeof isActive !== "boolean" && role === undefined && typeof featured !== "boolean") ||
+    (typeof isActive === "boolean" && (role !== undefined || featured !== undefined)) ||
+    (role !== undefined && (isActive !== undefined || featured !== undefined)) ||
+    (typeof featured === "boolean" && (role !== undefined || isActive !== undefined))
+  ) {
     return NextResponse.json(
-      { error: "Choose an artist and set their account status." },
+      { error: "Choose an artist and provide a valid account update." },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }
 
   try {
-    const updated = await updateArtistAccountStatus(email, isActive);
+    const user = verifySessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value ?? "");
+    const updated = role === "admin"
+      ? await promoteArtistAccountToAdmin(email)
+      : role === "artist"
+        ? await revokeAdminAccount(email, user?.email ?? "")
+        : typeof featured === "boolean"
+          ? await setArtistFeaturedStatus(email, featured)
+          : await updateArtistAccountStatus(email, isActive === true);
+    if (updated === "last-admin") {
+      return NextResponse.json(
+        { error: "The last remaining administrator cannot be revoked. Promote another artist first." },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (updated === "self") {
+      return NextResponse.json(
+        { error: "You cannot revoke your own administrator access. Ask another administrator to do it." },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (updated === "busy") {
+      return NextResponse.json(
+        { error: "Another administrator role change is in progress. Please try again." },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     if (updated === null) {
       return NextResponse.json(
         { error: "The artist directory is temporarily unavailable." },
@@ -76,7 +117,11 @@ export async function PATCH(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { success: true, isActive },
+      role !== undefined
+        ? { success: true, role }
+        : typeof featured === "boolean"
+          ? { success: true, featured }
+          : { success: true, isActive },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

@@ -7,11 +7,13 @@ export function ArtistSkillSelector({
   selectedIds,
   onChange,
   idPrefix,
+  disabledIds = [],
 }: {
   skills: ArtistSkill[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   idPrefix: string;
+  disabledIds?: string[];
 }) {
   function toggleSkill(id: string) {
     onChange(selectedIds.includes(id)
@@ -31,10 +33,13 @@ export function ArtistSkillSelector({
     <div className="grid gap-3 sm:grid-cols-2">
       {skills.map((skill) => {
         const checked = selectedIds.includes(skill.id);
+        const disabled = disabledIds.includes(skill.id);
         const descriptionId = `${idPrefix}-skill-description-${skill.id}`;
         return (
           <label
-            className={`group relative flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#d9af57] ${
+            className={`group relative flex min-h-16 items-center gap-3 rounded-xl border px-4 py-3 transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#d9af57] ${
+              disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+            } ${
               checked
                 ? "border-[#d9af57]/60 bg-[#d9af57]/[0.08]"
                 : "border-white/[0.08] bg-[#0b0b0a] hover:border-[#d9af57]/35"
@@ -46,6 +51,7 @@ export function ArtistSkillSelector({
               aria-describedby={descriptionId}
               checked={checked}
               className="peer sr-only"
+              disabled={disabled}
               onChange={() => toggleSkill(skill.id)}
               type="checkbox"
             />

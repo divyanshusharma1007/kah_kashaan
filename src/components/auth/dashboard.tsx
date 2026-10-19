@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AdminOverview } from "@/components/auth/admin-overview";
+import { ArtistFeatureRequest } from "@/components/auth/artist-feature-request";
 import { ArtistProfile } from "@/components/auth/artist-profile";
 import { RegistrationForm } from "@/components/home/registration-form";
 import { useAuth, type ArtistRegistration } from "@/components/auth/auth-context";
@@ -14,7 +15,6 @@ const adminNavigation = [
   { href: "/dashboard/events", label: "Events", icon: "events" },
   { href: "/dashboard/skills", label: "Skills", icon: "skills" },
   { href: "/dashboard/artists", label: "Artists", icon: "artists" },
-  { href: "/dashboard/artist", label: "Artist dashboard", icon: "artist" },
 ] as const;
 
 function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "artists" | "artist" }) {
@@ -60,6 +60,7 @@ function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "art
 }
 
 function routeTitle(pathname: string, isAdmin: boolean): string {
+  if (!isAdmin && pathname.startsWith("/dashboard/artist/featured")) return "Public profile";
   if (!isAdmin || pathname === "/dashboard/artist") return "My registrations";
   if (pathname.startsWith("/dashboard/events/new")) return "Create event";
   if (pathname.includes("/overview")) return "Event overview";
@@ -76,18 +77,23 @@ export function Dashboard({ children }: { children: ReactNode }) {
   const { user, ready, sessionError, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const isArtistRoute = pathname === "/dashboard/artist" || pathname.startsWith("/dashboard/artist/");
 
   useEffect(() => {
-    if (ready && !user) router.replace("/login");
-  }, [ready, user, router]);
-
-  useEffect(() => {
-    if (ready && user && user.role !== "admin" && pathname !== "/dashboard") {
+    if (!ready) return;
+    if (!user) {
+      router.replace("/login");
+    } else if (user.role === "admin" && isArtistRoute) {
       router.replace("/dashboard");
+    } else if (user.role === "artist" && !isArtistRoute) {
+      router.replace("/dashboard/artist");
     }
-  }, [ready, user, pathname, router]);
+  }, [ready, user, isArtistRoute, router]);
 
-  if (!ready || !user || (user.role !== "admin" && pathname !== "/dashboard")) {
+  const hasWorkspaceAccess = user?.role === "admin"
+    ? !isArtistRoute
+    : user?.role === "artist" && isArtistRoute;
+  if (!ready || !user || !hasWorkspaceAccess) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#090908] px-4 text-center text-sm text-[#d8c8a2]">
         Preparing your dashboard...
@@ -96,7 +102,8 @@ export function Dashboard({ children }: { children: ReactNode }) {
   }
 
   const isAdmin = user.role === "admin";
-  const viewingArtist = !isAdmin || pathname === "/dashboard/artist";
+  const viewingArtist = !isAdmin;
+  const dashboardHref = isAdmin ? "/dashboard" : "/dashboard/artist";
 
   async function handleLogout() {
     try {
@@ -145,10 +152,28 @@ export function Dashboard({ children }: { children: ReactNode }) {
             <p className="px-3 pb-2 pt-5 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#746d5b]">
               Account
             </p>
-            <div className="flex min-h-11 items-center gap-3 rounded-xl bg-[#d9af57]/10 px-3 text-xs text-[#f3d98c]">
+            <Link
+              aria-current={pathname === "/dashboard/artist" ? "page" : undefined}
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-xs ${
+                pathname === "/dashboard/artist" ? "bg-[#d9af57]/10 text-[#f3d98c]" : "text-[#a99b7e] hover:bg-white/[0.04]"
+              }`}
+              href="/dashboard/artist"
+              onClick={() => setMobileMenuOpen(false)}
+            >
               <DashboardIcon name="artist" />
               My registrations
-            </div>
+            </Link>
+            <Link
+              aria-current={pathname.startsWith("/dashboard/artist/featured") ? "page" : undefined}
+              className={`mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-xs ${
+                pathname.startsWith("/dashboard/artist/featured") ? "bg-[#d9af57]/10 text-[#f3d98c]" : "text-[#a99b7e] hover:bg-white/[0.04]"
+              }`}
+              href="/dashboard/artist/featured"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <DashboardIcon name="artist" />
+              Public profile
+            </Link>
           </>
         )}
       </>
@@ -158,7 +183,7 @@ export function Dashboard({ children }: { children: ReactNode }) {
   return (
     <main className="min-h-screen bg-[#090908] text-[#fff5d9]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-white/[0.07] bg-[#0c0c0b] px-4 py-5 lg:flex">
-        <Link className="border-b border-white/[0.07] px-2 pb-5" href="/dashboard">
+        <Link className="border-b border-white/[0.07] px-2 pb-5" href={dashboardHref}>
           <Image alt="Kah-Kashaan" className="h-9 w-auto object-contain" height={60} src="/kah-kashaan-logo.png" width={180} />
         </Link>
         <nav aria-label="Dashboard sidebar" className="mt-2 flex-1">{navigation()}</nav>
@@ -183,7 +208,7 @@ export function Dashboard({ children }: { children: ReactNode }) {
       )}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/[0.07] bg-[#0c0c0b] px-4 py-5 transition-transform duration-200 lg:hidden ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between border-b border-white/[0.07] px-2 pb-5">
-          <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+          <Link href={dashboardHref} onClick={() => setMobileMenuOpen(false)}>
             <Image alt="Kah-Kashaan" className="h-9 w-auto object-contain" height={60} src="/kah-kashaan-logo.png" width={180} />
           </Link>
           <button aria-label="Close dashboard menu" className="grid h-9 w-9 place-items-center rounded-lg text-[#a99b7e] hover:bg-white/[0.05]" onClick={() => setMobileMenuOpen(false)} type="button">
@@ -228,7 +253,6 @@ export function Dashboard({ children }: { children: ReactNode }) {
 }
 
 export function DashboardHome() {
-  const pathname = usePathname();
   const { user, registrations, storageError } = useAuth();
   const [serverRegistrations, setServerRegistrations] = useState<ArtistRegistration[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<{
@@ -247,9 +271,19 @@ export function DashboardHome() {
   const [eventsError, setEventsError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
 
   useEffect(() => {
-    if (user?.role !== "artist" && pathname !== "/dashboard/artist") return;
+    const timeout = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user?.role !== "artist") return;
 
     let active = true;
     fetch("/api/events", { cache: "no-store" })
@@ -260,6 +294,7 @@ export function DashboardHome() {
         } catch {
           throw new Error("Upcoming events returned an invalid response.");
         }
+
         if (!response.ok) {
           const message =
             result && typeof result === "object" && "error" in result && typeof result.error === "string"
@@ -300,10 +335,10 @@ export function DashboardHome() {
     return () => {
       active = false;
     };
-  }, [user, pathname]);
+  }, [user]);
 
   useEffect(() => {
-    if (!user?.provider || (user.role === "admin" && pathname !== "/dashboard/artist")) return;
+    if (!user?.provider || user.role !== "artist") return;
 
     let active = true;
     fetch("/api/artist/registrations", { cache: "no-store" })
@@ -365,20 +400,23 @@ export function DashboardHome() {
     return () => {
       active = false;
     };
-  }, [user, pathname]);
+  }, [user]);
 
-  if (user?.role === "admin" && pathname !== "/dashboard/artist") return <AdminOverview />;
+  if (user?.role === "admin") return <AdminOverview />;
   const visibleRegistrations = user?.provider
     ? serverRegistrations
     : registrations.filter((registration) => registration.email === user?.email);
   const performedRegistrations = visibleRegistrations.filter((registration) =>
     registration.willPerform !== false &&
     Boolean(registration.eventStartsAt) &&
-    new Date(registration.eventStartsAt!).getTime() < Date.now(),
+    currentTime !== null &&
+    new Date(registration.eventStartsAt!).getTime() < currentTime,
   );
   const upcomingRegistrations = visibleRegistrations.filter((registration) =>
     registration.willPerform !== false &&
-    (!registration.eventStartsAt || new Date(registration.eventStartsAt).getTime() >= Date.now()),
+    (!registration.eventStartsAt ||
+      currentTime === null ||
+      new Date(registration.eventStartsAt).getTime() >= currentTime),
   );
 
   return (
@@ -525,7 +563,7 @@ export function DashboardHome() {
                 )}
                 {registration.willPerform !== false && registration.eventStartsAt && (
                   <p className="mt-2 text-xs text-emerald-200">
-                    {new Date(registration.eventStartsAt).getTime() < Date.now() ? "Performed" : "Performing"}
+                    {currentTime !== null && new Date(registration.eventStartsAt).getTime() < currentTime ? "Performed" : "Performing"}
                   </p>
                 )}
               </div>
@@ -543,4 +581,8 @@ export function DashboardHome() {
       )}
     </section>
   );
+}
+
+export function ArtistFeaturedProfilePage() {
+  return <ArtistFeatureRequest />;
 }

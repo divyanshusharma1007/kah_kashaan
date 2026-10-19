@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ArtistSkill } from "@/services/artist-skills";
 import type { ManagedEvent, ManagedEventRegistration } from "@/services/events";
 
@@ -57,6 +57,8 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
   const [error, setError] = useState("");
   const [updatingEmail, setUpdatingEmail] = useState("");
   const [notice, setNotice] = useState("");
+  const [registrantQuery, setRegistrantQuery] = useState("");
+  const [performanceFilter, setPerformanceFilter] = useState("all");
 
   useEffect(() => {
     let active = true;
@@ -118,6 +120,17 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
       setUpdatingEmail("");
     }
   }
+
+  const filteredRegistrations = useMemo(() => {
+    const query = registrantQuery.trim().toLowerCase();
+    return (overview?.registrations ?? [])
+      .filter((registration) => performanceFilter === "all" ||
+        (performanceFilter === "performing" ? registration.willPerform : !registration.willPerform))
+      .filter((registration) => !query ||
+        `${registration.name} ${registration.email} ${registration.phone} ${registration.skillNames.join(" ")}`
+          .toLowerCase()
+          .includes(query));
+  }, [overview?.registrations, registrantQuery, performanceFilter]);
 
   return (
     <section>
@@ -184,14 +197,43 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
           {notice && <p className="mt-5 rounded-xl border border-emerald-400/25 bg-emerald-950/20 p-3 text-sm text-emerald-200" role="status">{notice}</p>}
           {error && <p className="mt-5 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{error}</p>}
           <div className="mt-6">
-            <h2 className="font-[var(--font-display)] text-2xl text-[#fff5d9]">Registered artists</h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="font-[var(--font-display)] text-2xl text-[#fff5d9]">Registered artists</h2>
+                <p className="mt-1 text-xs text-[#827864]">{overview.registrations.length} registrations</p>
+              </div>
+              {overview.registrations.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_12rem]">
+                  <label className="sr-only" htmlFor="event-artist-search">Search registered artists</label>
+                  <input
+                    className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none placeholder:text-[#716954]"
+                    id="event-artist-search"
+                    onChange={(event) => setRegistrantQuery(event.target.value)}
+                    placeholder="Search name, email, skills..."
+                    type="search"
+                    value={registrantQuery}
+                  />
+                  <label className="sr-only" htmlFor="event-performance-filter">Filter artist performance status</label>
+                  <select
+                    className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none"
+                    id="event-performance-filter"
+                    onChange={(event) => setPerformanceFilter(event.target.value)}
+                    value={performanceFilter}
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="performing">Performing</option>
+                    <option value="not-performing">Not performing</option>
+                  </select>
+                </div>
+              )}
+            </div>
             {overview.registrations.length === 0 ? (
               <p className="mt-3 rounded-xl border border-dashed border-white/[0.1] bg-[#10100f] p-5 text-sm text-[#a99b7e]">
                 No artists have registered for this event yet.
               </p>
             ) : (
               <div className="mt-3 space-y-3">
-                {overview.registrations.map((registration) => (
+                {filteredRegistrations.map((registration) => (
                   <article className="flex flex-col gap-4 rounded-xl border border-white/[0.07] bg-[#10100f] p-4 sm:flex-row sm:items-center sm:justify-between" key={`${registration.email}-${registration.createdAt}`}>
                     <div className="min-w-0">
                       <h3 className="text-sm font-medium text-[#f0e6ce]">{registration.name}</h3>
@@ -223,6 +265,11 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
                     </button>
                   </article>
                 ))}
+                {filteredRegistrations.length === 0 && (
+                  <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-4 text-sm text-[#827864]">
+                    No registrations match the current search and filter.
+                  </p>
+                )}
               </div>
             )}
           </div>

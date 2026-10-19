@@ -15,7 +15,7 @@ function jsonResponse(body: object, status = 200) {
 }
 
 export async function PUT(request: NextRequest, context: SkillRouteContext) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
   if (request.headers.get("origin") !== request.nextUrl.origin) {
     return jsonResponse({ error: "Invalid skill update request." }, 403);

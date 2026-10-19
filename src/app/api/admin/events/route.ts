@@ -12,7 +12,7 @@ function hasValidOrigin(request: NextRequest): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   try {
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
   if (!hasValidOrigin(request)) return jsonResponse({ error: "Invalid event request." }, 403);
 

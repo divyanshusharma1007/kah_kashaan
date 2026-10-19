@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { AboutSection } from "@/components/home/about-section";
 import { CommunitySection } from "@/components/home/community-section";
 import { EventsSection } from "@/components/home/events-section";
+import { FeaturedArtists } from "@/components/artists/featured-artists";
 import { HeroSection } from "@/components/home/hero-section";
 import { ProgramSection } from "@/components/home/program-section";
 import { SiteLayout } from "@/components/home/site-layout";
@@ -31,6 +32,7 @@ export default async function Home() {
       <AboutSection highlights={aboutHighlights} />
       <ProgramSection programs={programs} />
       <EventsSection upcomingEvents={upcomingEvents} />
+      <FeaturedArtists preview />
       <CommunitySection metrics={communityMetrics} />
     </SiteLayout>
   );

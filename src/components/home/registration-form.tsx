@@ -32,9 +32,15 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
   const visibleSkills = selectedChoice?.skillIds.length
     ? skills.filter((skill) => selectedChoice.skillIds.includes(skill.id))
     : skills;
-  const isEligibleForSelectedEvent =
+  const hasMatchingProfileSkill =
     !selectedChoice?.skillIds.length ||
     selectedChoice.skillIds.some((skillId) => profileSkillIds.includes(skillId));
+  const hasSelectedEventSkill =
+    !selectedChoice?.skillIds.length ||
+    selectedChoice.skillIds.some((skillId) =>
+      profileSkillIds.includes(skillId) && selectedSkillIds.includes(skillId),
+    );
+  const isEligibleForSelectedEvent = hasMatchingProfileSkill && hasSelectedEventSkill;
 
   useEffect(() => {
     if (!signedInArtist) return;
@@ -169,7 +175,7 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
         <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Registration confirmed</p>
         <h3 className="mt-2 font-[var(--font-display)] text-2xl text-[#fff5d9]">{eventNames.length === 1 ? eventNames[0] : eventName}</h3>
         <p className="mt-2 text-sm leading-6 text-[#c6bda5]">This event is now part of your artist dashboard.</p>
-        <Link className="mt-4 inline-flex min-h-10 items-center text-xs font-semibold uppercase tracking-[0.14em] text-[#f0ddab] underline underline-offset-4" href="/dashboard">
+        <Link className="mt-4 inline-flex min-h-10 items-center text-xs font-semibold uppercase tracking-[0.14em] text-[#f0ddab] underline underline-offset-4" href="/dashboard/artist">
           View artist dashboard
         </Link>
       </div>
@@ -214,6 +220,9 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
           <p className="rounded-xl border border-white/[0.08] p-4 text-sm text-[#a99b7e]" role="status">Loading performance skills...</p>
         ) : (
           <ArtistSkillSelector
+            disabledIds={visibleSkills
+              .filter((skill) => !profileSkillIds.includes(skill.id))
+              .map((skill) => skill.id)}
             idPrefix="event-registration"
             onChange={setSelectedSkillIds}
             selectedIds={selectedSkillIds}
@@ -223,7 +232,17 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
       </fieldset>
       {!loadingSkills && !error && selectedChoice?.skillIds.length && !isEligibleForSelectedEvent && (
         <p className="mt-4 rounded-xl border border-amber-400/25 bg-amber-950/20 p-4 text-sm leading-6 text-amber-100" role="status">
-          This event requires at least one listed skill in your artist profile. Update your profile skills to register.
+          {!hasMatchingProfileSkill ? (
+            <>
+              This event requires at least one listed skill in your artist profile.{" "}
+              <Link className="font-semibold underline underline-offset-4" href="/dashboard/artist#artist-profile-heading">
+                Update your profile skills
+              </Link>{" "}
+              to register.
+            </>
+          ) : (
+            "Select at least one of your event skills to register. Your profile skills are preselected."
+          )}
         </p>
       )}
       {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">{error}</p>}

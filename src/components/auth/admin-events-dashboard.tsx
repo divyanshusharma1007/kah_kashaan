@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import type { ManagedEvent } from "@/services/events";
 
 function isManagedEvent(value: unknown): value is ManagedEvent {
@@ -41,11 +42,16 @@ function formatPrice(value: number): string {
 }
 
 export function AdminEventsDashboard() {
+  const router = useRouter();
   const [events, setEvents] = useState<ManagedEvent[]>([]);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("recent");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState("");
   const [notice, setNotice] = useState("");
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -121,10 +127,31 @@ export function AdminEventsDashboard() {
     }
   }
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, []);
+
   const upcomingCount = events.filter(
-    (event) => event.status === "published" && new Date(event.startsAt).getTime() >= Date.now(),
+    (event) => event.status === "published" && currentTime !== null && new Date(event.startsAt).getTime() >= currentTime,
   ).length;
   const draftCount = events.filter((event) => event.status === "draft").length;
+  const filteredEvents = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return events
+      .filter((event) => statusFilter === "all" || event.status === statusFilter)
+      .filter((event) => !normalizedQuery ||
+        `${event.title} ${event.type} ${event.location} ${event.description} ${event.organizer}`
+          .toLowerCase()
+          .includes(normalizedQuery))
+      .sort((left, right) => sortOrder === "date"
+        ? left.startsAt.localeCompare(right.startsAt)
+        : right.createdAt.localeCompare(left.createdAt));
+  }, [events, query, statusFilter, sortOrder]);
 
   return (
     <section>
@@ -154,6 +181,39 @@ export function AdminEventsDashboard() {
         </p>
       )}
 
+      <div className="mt-5 grid gap-2 sm:grid-cols-3">
+        <label className="sr-only" htmlFor="event-search">Search events</label>
+        <input
+          className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none placeholder:text-[#716954] focus:border-[#d9af57]/45"
+          id="event-search"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search title, type, location..."
+          type="search"
+          value={query}
+        />
+        <label className="sr-only" htmlFor="event-status-filter">Filter events by status</label>
+        <select
+          className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none focus:border-[#d9af57]/45"
+          id="event-status-filter"
+          onChange={(event) => setStatusFilter(event.target.value)}
+          value={statusFilter}
+        >
+          <option value="all">All statuses</option>
+          <option value="published">Published</option>
+          <option value="draft">Drafts</option>
+        </select>
+        <label className="sr-only" htmlFor="event-sort">Sort events</label>
+        <select
+          className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none focus:border-[#d9af57]/45"
+          id="event-sort"
+          onChange={(event) => setSortOrder(event.target.value)}
+          value={sortOrder}
+        >
+          <option value="recent">Recently added</option>
+          <option value="date">Soonest event date</option>
+        </select>
+      </div>
+
       {loading ? (
         <p className="mt-5 rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">
           Loading events...
@@ -169,14 +229,32 @@ export function AdminEventsDashboard() {
             Create an event
           </Link>
         </div>
+      ) : filteredEvents.length === 0 ? (
+        <p className="mt-5 rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">
+          No events match the current search and filters.
+        </p>
       ) : (
         <div className="mt-5 overflow-hidden rounded-xl border border-white/[0.07] bg-[#10100f]">
-          {events.map((event, index) => (
+          {filteredEvents.map((event, index) => (
             <article
-              className={`flex min-w-0 flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${
+              aria-label={`Open overview for ${event.title}`}
+              className={`flex min-w-0 cursor-pointer flex-col gap-3 p-4 transition hover:bg-white/[0.025] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#d9af57] sm:flex-row sm:items-center sm:justify-between ${
                 index > 0 ? "border-t border-white/[0.06]" : ""
               }`}
+              onClick={(clickEvent) => {
+                if ((clickEvent.target as HTMLElement).closest("a, button")) return;
+                router.push(`/dashboard/events/${encodeURIComponent(event.id)}/overview`);
+              }}
+              onKeyDown={(keyEvent) => {
+                if (keyEvent.target !== keyEvent.currentTarget) return;
+                if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                  keyEvent.preventDefault();
+                  router.push(`/dashboard/events/${encodeURIComponent(event.id)}/overview`);
+                }
+              }}
               key={event.id}
+              role="link"
+              tabIndex={0}
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">

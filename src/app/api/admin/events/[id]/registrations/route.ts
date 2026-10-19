@@ -17,7 +17,7 @@ function jsonResponse(body: object, status = 200) {
 }
 
 export async function GET(request: NextRequest, context: EventRegistrationsRouteContext) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   const { id } = await context.params;
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest, context: EventRegistrationsRoute
 }
 
 export async function PATCH(request: NextRequest, context: EventRegistrationsRouteContext) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
   if (request.headers.get("origin") !== request.nextUrl.origin) {
     return jsonResponse({ error: "Invalid event registration update request." }, 403);

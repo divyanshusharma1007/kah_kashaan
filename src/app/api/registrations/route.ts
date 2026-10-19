@@ -61,6 +61,12 @@ export async function POST(request: NextRequest) {
     if (result === "event-skills-unavailable") {
       return jsonResponse({ error: "Select only skills available for this event." }, 400);
     }
+    if (result === "event-skill-not-selected") {
+      return jsonResponse({ error: "Select at least one of this event's skills to register." }, 400);
+    }
+    if (result === "artist-skills-not-in-profile") {
+      return jsonResponse({ error: "Select only skills saved on your artist profile." }, 400);
+    }
     if (result === "artist-not-qualified") {
       return jsonResponse({ error: "Your profile does not include any of this event's required skills." }, 403);
     }

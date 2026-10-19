@@ -3,7 +3,7 @@ import { requireAdmin } from "@/services/admin-auth";
 import { getAdminOverview } from "@/services/admin-overview";
 
 export async function GET(request: NextRequest) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   try {

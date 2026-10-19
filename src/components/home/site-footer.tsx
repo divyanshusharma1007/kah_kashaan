@@ -37,6 +37,7 @@ export function SiteFooter() {
             <ul className="mt-4 space-y-3 text-sm text-[#d9ceb0]">
               <li><Link className="transition hover:text-white" href="/about">Our story</Link></li>
               <li><Link className="transition hover:text-white" href="/community">Community</Link></li>
+              <li><Link className="transition hover:text-white" href="/artists">Featured artists</Link></li>
               <li><Link className="transition hover:text-white" href="/partners">Our partners</Link></li>
             </ul>
           </div>
