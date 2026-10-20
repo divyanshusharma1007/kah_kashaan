@@ -1,9 +1,10 @@
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { RegistrationForm } from "@/components/home/registration-form";
 import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
-import { getUpcomingPublishedEvent, isValidEventId } from "@/services/events";
+import { getPublicEventSponsors, getUpcomingPublishedEvent, isValidEventId } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 
 type EventDetailsPageProps = {
@@ -20,6 +21,8 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
   if (!event) notFound();
   const eventSkills = await getArtistSkillsByIds(event.skillIds);
   if (!eventSkills) throw new Error("Event skills are temporarily unavailable.");
+  const sponsors = await getPublicEventSponsors(event);
+  if (!sponsors) throw new Error("Event sponsors are temporarily unavailable.");
 
   const { navItems, logo } = await getHomePageData();
   const startsAt = new Intl.DateTimeFormat("en-IN", {
@@ -40,6 +43,7 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
           <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#d8c8a2]">
             <span>{startsAt}</span>
             <span>{event.location}</span>
+            {event.city && <span>{event.city}</span>}
             <span>{price}</span>
             {event.capacity !== null && <span>{event.capacity} seats</span>}
           </div>
@@ -55,6 +59,19 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
                 ))}
               </div>
             </div>
+          )}
+          {sponsors.length > 0 && (
+            <section aria-labelledby="event-sponsors-heading" className="mt-6">
+              <h2 className="text-xs font-medium text-[#cbbd9f]" id="event-sponsors-heading">Event sponsors</h2>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {sponsors.map((sponsor) => (
+                  <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2" key={sponsor.id}>
+                    {sponsor.logoUrl && <Image alt="" className="h-8 w-8 rounded-md bg-white object-contain p-1" height={32} src={sponsor.logoUrl} unoptimized width={32} />}
+                    <span className="text-xs text-[#e6d6af]">{sponsor.name}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
           <div className="mt-8 border-t border-white/[0.07] pt-7">
             <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]">About this event</h2>

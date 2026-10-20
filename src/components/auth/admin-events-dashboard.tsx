@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { ManagedEvent } from "@/services/events";
+import { getEventLifecycleStatus } from "@/lib/event-lifecycle";
 
 function isManagedEvent(value: unknown): value is ManagedEvent {
   if (!value || typeof value !== "object") return false;
@@ -14,12 +15,15 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     typeof event.type === "string" &&
     typeof event.startsAt === "string" &&
     typeof event.location === "string" &&
+    typeof event.city === "string" &&
     typeof event.price === "number" &&
     (event.capacity === null || typeof event.capacity === "number") &&
     typeof event.organizer === "string" &&
     (event.status === "published" || event.status === "draft") &&
     Array.isArray(event.skillIds) &&
     event.skillIds.every((id) => typeof id === "string") &&
+    Array.isArray(event.sponsorIds) &&
+    event.sponsorIds.every((id) => typeof id === "string") &&
     typeof event.createdAt === "string" &&
     typeof event.updatedAt === "string";
 }
@@ -137,28 +141,33 @@ export function AdminEventsDashboard() {
   }, []);
 
   const upcomingCount = events.filter(
-    (event) => event.status === "published" && currentTime !== null && new Date(event.startsAt).getTime() >= currentTime,
+    (event) => event.status === "published" &&
+      getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "published",
   ).length;
   const draftCount = events.filter((event) => event.status === "draft").length;
+  const completedCount = events.filter((event) =>
+    getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "completed",
+  ).length;
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return events
-      .filter((event) => statusFilter === "all" || event.status === statusFilter)
+      .filter((event) => statusFilter === "all" ||
+        getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === statusFilter)
       .filter((event) => !normalizedQuery ||
-        `${event.title} ${event.type} ${event.location} ${event.description} ${event.organizer}`
+        `${event.title} ${event.type} ${event.location} ${event.city} ${event.description} ${event.organizer}`
           .toLowerCase()
           .includes(normalizedQuery))
       .sort((left, right) => sortOrder === "date"
         ? left.startsAt.localeCompare(right.startsAt)
         : right.createdAt.localeCompare(left.createdAt));
-  }, [events, query, statusFilter, sortOrder]);
+  }, [events, query, statusFilter, sortOrder, currentTime]);
 
   return (
     <section>
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#a79a7d]">
-            {upcomingCount} upcoming · {draftCount} drafts
+            {upcomingCount} upcoming · {completedCount} done · {draftCount} drafts
           </p>
           <h1 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9] sm:text-4xl">Events</h1>
         </div>
@@ -201,6 +210,7 @@ export function AdminEventsDashboard() {
           <option value="all">All statuses</option>
           <option value="published">Published</option>
           <option value="draft">Drafts</option>
+          <option value="completed">Done</option>
         </select>
         <label className="sr-only" htmlFor="event-sort">Sort events</label>
         <select
@@ -260,17 +270,26 @@ export function AdminEventsDashboard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[9px] uppercase tracking-[0.16em] text-[#d9af57]">{event.type}</span>
                   <span className={`rounded-full px-2 py-0.5 text-[9px] ${
-                    event.status === "published"
+                    getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "completed"
+                      ? "bg-sky-950/40 text-sky-200"
+                      : event.status === "published"
                       ? "bg-emerald-950/30 text-emerald-200"
                       : "bg-amber-950/30 text-amber-100"
                   }`}>
-                    {event.status}
+                    {getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "completed"
+                      ? "Done"
+                      : event.status}
                   </span>
                 </div>
                 <h2 className="mt-1 break-words text-sm font-medium text-[#f0e6ce]">{event.title}</h2>
                 <p className="mt-1 text-xs text-[#827864]">
-                  {formatDate(event.startsAt)} · {event.location} · {formatPrice(event.price)}
+                  {formatDate(event.startsAt)} · {event.location}{event.city ? `, ${event.city}` : ""} · {formatPrice(event.price)}
                 </p>
+                {event.sponsorIds.length > 0 && (
+                  <p className="mt-1 text-[10px] text-[#d2b46a]">
+                    {event.sponsorIds.length} event {event.sponsorIds.length === 1 ? "sponsor" : "sponsors"}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 gap-2">
                 <Link

@@ -2,6 +2,7 @@ import "server-only";
 
 import { ObjectId, type WithId } from "mongodb";
 import { getMongoClient } from "@/services/mongodb";
+import { listPublicSponsorsByIds } from "@/services/sponsors";
 
 export type EventStatus = "published" | "draft";
 
@@ -11,11 +12,13 @@ export type EventInput = {
   type: string;
   startsAt: string;
   location: string;
+  city: string;
   price: number;
   capacity: number | null;
   organizer: string;
   status: EventStatus;
   skillIds: string[];
+  sponsorIds: string[];
 };
 
 export type ManagedEvent = EventInput & {
@@ -24,11 +27,13 @@ export type ManagedEvent = EventInput & {
   updatedAt: string;
 };
 
-type EventDocument = Omit<EventInput, "startsAt" | "skillIds"> & {
+type EventDocument = Omit<EventInput, "startsAt" | "skillIds" | "city" | "sponsorIds"> & {
   startsAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  city?: string;
   skillIds?: string[];
+  sponsorIds?: string[];
 };
 
 type EventRegistrationDocument = {
@@ -87,11 +92,13 @@ function serializeEvent(event: WithId<EventDocument>): ManagedEvent {
     type: event.type,
     startsAt: event.startsAt.toISOString(),
     location: event.location,
+    city: event.city ?? "",
     price: event.price,
     capacity: event.capacity,
     organizer: event.organizer,
     status: event.status,
     skillIds: event.skillIds ?? [],
+    sponsorIds: event.sponsorIds ?? [],
     createdAt: event.createdAt.toISOString(),
     updatedAt: event.updatedAt.toISOString(),
   };
@@ -110,8 +117,10 @@ export function parseEventInput(value: unknown):
   const type = typeof body.type === "string" ? body.type.trim() : "";
   const startsAt = typeof body.startsAt === "string" ? body.startsAt : "";
   const location = typeof body.location === "string" ? body.location.trim() : "";
+  const city = typeof body.city === "string" ? body.city.trim() : "";
   const organizer = typeof body.organizer === "string" ? body.organizer.trim() : "";
   const skillIds = body.skillIds === undefined ? [] : body.skillIds;
+  const sponsorIds = body.sponsorIds === undefined ? [] : body.sponsorIds;
   const price = body.price;
   const capacity = body.capacity;
   const status = body.status;
@@ -135,6 +144,9 @@ export function parseEventInput(value: unknown):
   if (!location || location.length > 240) {
     return { success: false, error: "Enter an event location of up to 240 characters." };
   }
+  if (city.length > 100) {
+    return { success: false, error: "Event city must be 100 characters or fewer." };
+  }
   if (typeof price !== "number" || !Number.isFinite(price) || price < 0 || price > 1_000_000) {
     return { success: false, error: "Enter a valid ticket price between ₹0 and ₹10,00,000." };
   }
@@ -157,6 +169,13 @@ export function parseEventInput(value: unknown):
   ) {
     return { success: false, error: "Choose valid event skills." };
   }
+  if (
+    !Array.isArray(sponsorIds) ||
+    sponsorIds.length > 20 ||
+    !sponsorIds.every((id) => typeof id === "string" && /^[\da-f]{24}$/i.test(id))
+  ) {
+    return { success: false, error: "Choose up to 20 valid event sponsors." };
+  }
 
   return {
     success: true,
@@ -166,11 +185,13 @@ export function parseEventInput(value: unknown):
       type,
       startsAt: new Date(startsAt).toISOString(),
       location,
+      city,
       price,
       capacity,
       organizer,
       status,
       skillIds: [...new Set(skillIds.map((id) => (id as string).toLowerCase()))],
+      sponsorIds: [...new Set(sponsorIds.map((id) => (id as string).toLowerCase()))],
     },
   };
 }
@@ -212,6 +233,10 @@ export async function getUpcomingPublishedEvent(id: string): Promise<ManagedEven
     startsAt: { $gte: new Date() },
   });
   return event ? serializeEvent(event) : undefined;
+}
+
+export async function getPublicEventSponsors(event: ManagedEvent) {
+  return listPublicSponsorsByIds(event.sponsorIds);
 }
 
 export async function createEvent(input: EventInput): Promise<ManagedEvent | null> {

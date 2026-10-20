@@ -9,6 +9,7 @@ export type RecentRegistration = {
   email: string;
   phone: string;
   eventName: string;
+  eventId?: string;
   eventPrice: number | null;
   paymentStatus: "paid" | "due" | "not-required";
   createdAt: string;
@@ -19,8 +20,19 @@ export type RecentEvent = {
   title: string;
   type: string;
   startsAt: string;
+  city: string;
   status: EventStatus;
   createdAt: string;
+};
+
+export type EventCommitment = {
+  name: string;
+  email: string;
+  eventName: string;
+  eventId?: string;
+  createdAt: string;
+  willPerform: boolean;
+  paymentMethod: "razorpay" | "at-event" | "free" | "legacy";
 };
 
 export type AdminUserSummary = {
@@ -50,6 +62,7 @@ export type AdminOverviewData = {
   monthRegistrationValue: number;
   recentEvents: RecentEvent[];
   recentRegistrations: RecentRegistration[];
+  eventCommitments: EventCommitment[];
 };
 
 type UserDocument = {
@@ -74,6 +87,7 @@ type EventDocument = {
   title: string;
   type: string;
   startsAt: Date;
+  city?: string;
   status: EventStatus;
   price: number;
   createdAt: Date;
@@ -84,9 +98,11 @@ type RegistrationDocument = {
   email: string;
   phone: string;
   eventName: string;
+  eventId?: string;
   eventPrice?: number;
   paymentMethod?: "razorpay" | "at-event" | "free";
   paymentStatus?: "paid" | "due" | "not-required";
+  willPerform?: boolean;
   createdAt: Date;
 };
 
@@ -130,16 +146,17 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     recentEvents,
     monthRegistrations,
     recentRegistrationDocuments,
+    eventCommitmentDocuments,
     eventPrices,
   ] = await Promise.all([
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false } }),
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false }, role: "admin" }),
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false }, role: "artist" }),
     events.countDocuments({}),
-    events.countDocuments({ status: "published", startsAt: { $gte: now } }),
+    events.countDocuments({ status: "published", startsAt: { $gte: today } }),
     events
       .find({})
-      .project<EventDocument>({ title: 1, type: 1, startsAt: 1, status: 1, createdAt: 1 })
+      .project<EventDocument>({ title: 1, type: 1, startsAt: 1, city: 1, status: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
       .limit(10)
       .toArray(),
@@ -150,6 +167,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
         email: 1,
         phone: 1,
         eventName: 1,
+        eventId: 1,
         eventPrice: 1,
         paymentMethod: 1,
         paymentStatus: 1,
@@ -164,6 +182,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
         email: 1,
         phone: 1,
         eventName: 1,
+        eventId: 1,
         eventPrice: 1,
         paymentMethod: 1,
         paymentStatus: 1,
@@ -171,6 +190,26 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       })
       .sort({ createdAt: -1 })
       .limit(10)
+      .toArray(),
+    registrations
+      .find({
+        paymentMethod: "at-event",
+        $or: [
+          { paymentStatus: "due" },
+          { paymentStatus: { $exists: false } },
+        ],
+      })
+      .project<RegistrationDocument>({
+        name: 1,
+        email: 1,
+        eventName: 1,
+        eventId: 1,
+        paymentMethod: 1,
+        willPerform: 1,
+        createdAt: 1,
+      })
+      .sort({ createdAt: -1 })
+      .limit(8)
       .toArray(),
     events.find({}).project<{ title: string; price: number }>({ title: 1, price: 1 }).toArray(),
   ]);
@@ -209,6 +248,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       title: event.title,
       type: event.type,
       startsAt: event.startsAt.toISOString(),
+      city: event.city ?? "",
       status: event.status,
       createdAt: event.createdAt.toISOString(),
     })),
@@ -217,9 +257,19 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       email: registration.email,
       phone: registration.phone,
       eventName: registration.eventName,
+      ...(registration.eventId ? { eventId: registration.eventId } : {}),
       eventPrice: getRegistrationPrice(registration),
       paymentStatus: registration.paymentStatus ?? "paid",
       createdAt: registration.createdAt.toISOString(),
+    })),
+    eventCommitments: eventCommitmentDocuments.map((registration) => ({
+      name: registration.name,
+      email: (registration.email || "").trim().toLowerCase(),
+      eventName: registration.eventName,
+      ...(registration.eventId ? { eventId: registration.eventId } : {}),
+      createdAt: registration.createdAt.toISOString(),
+      willPerform: registration.willPerform === true,
+      paymentMethod: registration.paymentMethod ?? "legacy",
     })),
   };
 }

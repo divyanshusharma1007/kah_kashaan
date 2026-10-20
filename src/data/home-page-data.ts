@@ -1,5 +1,7 @@
 import { getHomePageDataFromApi } from "@/services/home-service";
+import { defaultHeroContent } from "@/data/hero-content";
 import { sampleAboutTeam } from "@/data/about-team";
+import { getHomepageHeroContent } from "@/services/homepage-content";
 
 export type NavItem = {
   label: string;
@@ -12,9 +14,11 @@ export type Stat = {
 };
 
 export type ProgramCard = {
+  slug: string;
   title: string;
   tag: string;
   description: string;
+  body: string;
   details: string[];
 };
 
@@ -24,6 +28,7 @@ export type EventItem = {
   title: string;
   type: string;
   venue: string;
+  city?: string;
   startsAt?: string;
   description?: string;
   price?: number;
@@ -52,17 +57,22 @@ export type CommunityMetric = {
 };
 
 export async function getHomePageData() {
-  const data = await getHomePageDataFromApi();
+  const [data, cms] = await Promise.all([
+    getHomePageDataFromApi(),
+    getHomepageHeroContent(),
+  ]);
+  const content = cms ?? defaultHeroContent;
 
   return {
     navItems: data.navItems as NavItem[],
     logo: data.logo,
-    stats: data.stats as Stat[],
-    programs: data.programs as ProgramCard[],
+    heroContent: content,
+    stats: content.stats,
+    programs: content.programs.items,
     featuredEvent: data.featuredEvent,
     upcomingEvents: data.upcomingEvents as EventItem[],
-    aboutHighlights: data.aboutHighlights as AboutHighlight[],
+    aboutHighlights: content.about.highlights,
     teamMembers: (data.teamMembers ?? sampleAboutTeam) as AboutTeamMember[],
-    communityMetrics: data.communityMetrics as CommunityMetric[],
+    communityMetrics: content.community.metrics,
   };
 }

@@ -3,17 +3,23 @@ import { Reveal } from "@/components/home/reveal";
 
 type AboutSectionProps = {
   highlights: AboutHighlight[];
+  eyebrow?: string;
+  heading?: string;
 };
 
-export function AboutSection({ highlights }: AboutSectionProps) {
+export function AboutSection({
+  highlights,
+  eyebrow = "About us",
+  heading = "A circle for literary growth and cultural belonging.",
+}: AboutSectionProps) {
   return (
     <section id="about" className="py-14">
       <Reveal>
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">About us</p>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">{eyebrow}</p>
             <h2 className="mt-3 font-[var(--font-display)] text-4xl text-[#fff5d9] md:text-5xl">
-              A circle for literary growth and cultural belonging.
+              {heading}
             </h2>
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
   setEventRegistrationPerformance,
 } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
+import { listPublicSponsorsByIds } from "@/services/sponsors";
 
 type EventRegistrationsRouteContext = {
   params: Promise<{ id: string }>;
@@ -32,9 +33,13 @@ export async function GET(request: NextRequest, context: EventRegistrationsRoute
       return jsonResponse({ error: "Event registrations are temporarily unavailable." }, 503);
     }
     if (!event || !overview) return jsonResponse({ error: "Event not found." }, 404);
-    const skills = await getArtistSkillsByIds(event.skillIds);
+    const [skills, sponsors] = await Promise.all([
+      getArtistSkillsByIds(event.skillIds),
+      listPublicSponsorsByIds(event.sponsorIds),
+    ]);
     if (!skills) return jsonResponse({ error: "Event skills are temporarily unavailable." }, 503);
-    return jsonResponse({ event, skills, ...overview });
+    if (!sponsors) return jsonResponse({ error: "Event sponsors are temporarily unavailable." }, 503);
+    return jsonResponse({ event, skills, sponsors, ...overview });
   } catch (error) {
     console.error("Could not load event registration overview.", error);
     return jsonResponse({ error: "Could not load event registrations. Please try again." }, 500);

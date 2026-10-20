@@ -5,9 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-context";
 import type { NavItem } from "@/data/home-page-data";
+import type { ProgramContent } from "@/data/hero-content";
 
 type SiteHeaderProps = {
   navItems: NavItem[];
+  programs?: ProgramContent[];
   logo: {
     src: string;
     alt: string;
@@ -33,7 +35,7 @@ function getNavHref(item: NavItem) {
   return navRoutes[section] ?? item.href;
 }
 
-export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
+export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuth();
   const accountHref = user ? "/dashboard" : "/login";
@@ -64,13 +66,25 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
         {/* Desktop Navigation Links */}
         <div className="hidden items-center gap-8 text-sm uppercase tracking-[0.2em] text-[#e7d7aa] md:flex">
           {navItems.map((item) => (
-            <Link
-              key={item.label}
-              href={getNavHref(item)}
-              className="transition hover:text-[#f9e8a0]"
-            >
-              {item.label}
-            </Link>
+            item.label.trim().toLowerCase() === "programs" ? (
+              <details className="group relative" key={item.label}>
+                <summary className="cursor-pointer list-none transition hover:text-[#f9e8a0] [&::-webkit-details-marker]:hidden">
+                  Programs <span aria-hidden="true" className="ml-1 text-[10px]">⌄</span>
+                </summary>
+                <div className="absolute left-1/2 top-full z-50 mt-4 w-64 -translate-x-1/2 rounded-2xl border border-[#d9af57]/25 bg-[#10100f] p-2 shadow-2xl">
+                  <Link className="block rounded-xl px-3 py-2.5 text-xs text-[#edcf81] hover:bg-white/[0.05]" href="/programs">All programs</Link>
+                  {programs.map((program) => (
+                    <Link className="block rounded-xl px-3 py-2.5 text-xs text-[#e7d7aa] hover:bg-white/[0.05] hover:text-white" href={`/programs/${encodeURIComponent(program.slug)}`} key={program.slug}>
+                      {program.title}
+                    </Link>
+                  ))}
+                </div>
+              </details>
+            ) : (
+              <Link key={item.label} href={getNavHref(item)} className="transition hover:text-[#f9e8a0]">
+                {item.label}
+              </Link>
+            )
           ))}
           <Link className="transition hover:text-[#f9e8a0]" href="/artists">
             Artists
@@ -82,12 +96,14 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
           <Link href={accountHref} className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#e7d7aa] transition hover:text-[#f9e8a0]">
             {accountLabel}
           </Link>
-          <Link
-            href="/reserve"
-            className="inline-block rounded-full border border-[#d9af57] bg-[#d9af57] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#111111] transition hover:bg-[#f3d98c]"
-          >
-            Reserve Seat
-          </Link>
+          {user?.role !== "admin" && (
+            <Link
+              href="/reserve"
+              className="inline-block rounded-full border border-[#d9af57] bg-[#d9af57] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#111111] transition hover:bg-[#f3d98c]"
+            >
+              Reserve Seat
+            </Link>
+          )}
         </div>
 
         {/* Mobile Hamburger / Close Button */}
@@ -135,14 +151,24 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
         <div className="overflow-hidden">
           <div className="flex flex-col gap-4 pb-2 text-center text-sm uppercase tracking-[0.2em] text-[#e7d7aa]">
             {navItems.map((item) => (
-              <Link
-                key={item.label}
-                href={getNavHref(item)}
-                onClick={() => setMobileMenuOpen(false)}
-                className="py-2 transition hover:text-[#f9e8a0]"
-              >
-                {item.label}
-              </Link>
+              <div className="flex flex-col items-center" key={item.label}>
+                <Link
+                  href={getNavHref(item)}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2 transition hover:text-[#f9e8a0]"
+                >
+                  {item.label}
+                </Link>
+                {item.label.trim().toLowerCase() === "programs" && programs.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 pb-2 text-[10px] normal-case tracking-normal text-[#b9ab8c]">
+                    {programs.map((program) => (
+                      <Link href={`/programs/${encodeURIComponent(program.slug)}`} key={program.slug} onClick={() => setMobileMenuOpen(false)}>
+                        {program.title}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
             <Link
             href="/artists"
@@ -158,15 +184,17 @@ export function SiteHeader({ navItems, logo }: SiteHeaderProps) {
             >
               {accountLabel}
             </Link>
-            <div className="pt-2">
-              <Link
-                href="/reserve"
-                onClick={() => setMobileMenuOpen(false)}
-                className="inline-block w-full rounded-full border border-[#d9af57] bg-[#d9af57] py-3 text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#111111] transition hover:bg-[#f3d98c]"
-              >
-                Reserve Seat
-              </Link>
-            </div>
+            {user?.role !== "admin" && (
+              <div className="pt-2">
+                <Link
+                  href="/reserve"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="inline-block w-full rounded-full border border-[#d9af57] bg-[#d9af57] py-3 text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#111111] transition hover:bg-[#f3d98c]"
+                >
+                  Reserve Seat
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>

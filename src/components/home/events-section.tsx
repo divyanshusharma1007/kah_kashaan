@@ -71,7 +71,9 @@ export function EventsSection({ upcomingEvents }: EventsSectionProps) {
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.25em] text-[#d9af57]">{event.type}</div>
                 <h3 className="mt-2 break-words font-[var(--font-display)] text-2xl text-[#f7ebc0] sm:text-3xl">{event.title}</h3>
-                <p className="mt-2 break-words text-sm text-[#d8c8a2]">{event.venue}</p>
+                <p className="mt-2 break-words text-sm text-[#d8c8a2]">
+                  {event.venue}{event.city ? ` · ${event.city}` : ""}
+                </p>
                 {event.startsAt && (
                   <p className="mt-2 text-xs text-[#b9ab8c]">
                     {new Intl.DateTimeFormat("en-IN", {

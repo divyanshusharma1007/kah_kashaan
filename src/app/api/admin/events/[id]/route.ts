@@ -8,6 +8,7 @@ import {
   updateEvent,
 } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
+import { listPublicSponsorsByIds } from "@/services/sponsors";
 
 type EventRouteContext = {
   params: Promise<{ id: string }>;
@@ -62,6 +63,11 @@ export async function PUT(request: NextRequest, context: EventRouteContext) {
     if (!skills) return jsonResponse({ error: "Event skills are temporarily unavailable." }, 503);
     if (skills.length !== parsed.data.skillIds.length) {
       return jsonResponse({ error: "One or more selected skills are no longer available. Refresh and try again." }, 400);
+    }
+    const sponsors = await listPublicSponsorsByIds(parsed.data.sponsorIds);
+    if (!sponsors) return jsonResponse({ error: "Event sponsors are temporarily unavailable." }, 503);
+    if (sponsors.length !== parsed.data.sponsorIds.length) {
+      return jsonResponse({ error: "One or more selected sponsors are no longer available. Refresh and try again." }, 400);
     }
     const event = await updateEvent(id, parsed.data);
     if (event === null) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);

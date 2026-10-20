@@ -27,7 +27,17 @@ function isFeaturedArtist(value: unknown): value is FeaturedArtist {
     typeof artist.hasPhoto === "boolean";
 }
 
-export function FeaturedArtists({ preview = false }: { preview?: boolean }) {
+export function FeaturedArtists({
+  preview = false,
+  content = {
+    eyebrow: "The Kah-Kashaan community",
+    heading: preview ? "Meet our featured artists" : "Featured artists",
+    description: "Meet the artists whose profiles have been selected to feature in our community.",
+  },
+}: {
+  preview?: boolean;
+  content?: { eyebrow: string; heading: string; description: string };
+}) {
   const [artists, setArtists] = useState<FeaturedArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -74,18 +84,18 @@ export function FeaturedArtists({ preview = false }: { preview?: boolean }) {
     >
       <div className={preview ? "flex flex-wrap items-end justify-between gap-4" : ""}>
         <div>
-          <p className="text-[10px] uppercase tracking-[0.25em] text-[#d9af57]">The Kah-Kashaan community</p>
+          <p className="text-[10px] uppercase tracking-[0.25em] text-[#d9af57]">{content.eyebrow}</p>
           {preview ? (
             <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[#fff5d9] sm:text-5xl" id="featured-artists-heading">
-              Meet our featured artists
+              {content.heading}
             </h2>
           ) : (
             <h1 className="mt-2 font-[var(--font-display)] text-4xl text-[#fff5d9] sm:text-6xl" id="featured-artists-heading">
-              Featured artists
+              {content.heading}
             </h1>
           )}
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#a99b7e]">
-            Meet the artists whose profiles have been selected to feature in our community.
+            {content.description}
           </p>
         </div>
         {preview && (
@@ -105,32 +115,54 @@ export function FeaturedArtists({ preview = false }: { preview?: boolean }) {
           No artists have been featured yet. Please check back soon.
         </p>
       ) : (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {visibleArtists.map((artist) => (
             <Link
-              className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-[#10100f] transition hover:-translate-y-1 hover:border-[#d9af57]/35"
+              className="group relative overflow-hidden rounded-[1.6rem] border border-[#d9af57]/15 bg-[linear-gradient(180deg,#17140e,#10100f_65%)] shadow-[0_18px_50px_rgba(0,0,0,0.2)] transition duration-300 hover:-translate-y-1 hover:border-[#d9af57]/45 hover:shadow-[0_22px_55px_rgba(217,175,87,0.1)]"
               href={`/artists/${encodeURIComponent(artist.id)}`}
               key={artist.id}
             >
               {artist.hasPhoto ? (
-                <Image
-                  alt={`${artist.name}'s profile`}
-                  className="h-56 w-full object-cover"
-                  height={448}
-                  src={`/api/artists/${encodeURIComponent(artist.id)}/photo`}
-                  unoptimized
-                  width={672}
-                />
+                <div className="relative h-72 overflow-hidden">
+                  <Image
+                    alt={`${artist.name}'s profile`}
+                    className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                    height={576}
+                    src={`/api/artists/${encodeURIComponent(artist.id)}/photo`}
+                    unoptimized
+                    width={672}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#090908] via-[#090908]/5 to-transparent" />
+                  <span className="absolute left-4 top-4 rounded-full border border-[#f3d98c]/25 bg-black/55 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-[#f3d98c] backdrop-blur">
+                    Featured artist
+                  </span>
+                  <span className="absolute bottom-4 left-5 right-5">
+                    <span className="block font-[var(--font-display)] text-3xl text-[#fff5d9]">{artist.name}</span>
+                    {(artist.city || artist.state) && (
+                      <span className="mt-1 block text-xs text-[#ead9b1]">{[artist.city, artist.state].filter(Boolean).join(", ")}</span>
+                    )}
+                  </span>
+                </div>
               ) : (
-                <div className="grid h-56 place-items-center bg-gradient-to-br from-[#342814] to-[#10100f] font-[var(--font-display)] text-6xl text-[#e9c76e]">
+                <div className="relative grid h-72 place-items-center bg-[radial-gradient(circle_at_50%_35%,rgba(217,175,87,0.25),transparent_42%),linear-gradient(145deg,#342814,#10100f)] font-[var(--font-display)] text-7xl text-[#e9c76e]">
+                  <span className="absolute left-4 top-4 rounded-full border border-[#f3d98c]/25 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-[#f3d98c]">Featured artist</span>
                   {artist.name.trim().charAt(0).toUpperCase()}
+                  <span className="absolute bottom-4 left-5 right-5 text-center font-[var(--font-display)] text-3xl text-[#fff5d9]">{artist.name}</span>
                 </div>
               )}
-              <div className="p-5">
-                <h2 className="font-[var(--font-display)] text-2xl text-[#fff5d9] group-hover:text-[#f2d98b]">{artist.name}</h2>
-                {(artist.city || artist.state) && <p className="mt-1 text-xs text-[#a99b7e]">{[artist.city, artist.state].filter(Boolean).join(", ")}</p>}
-                <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#c9bea2]">{artist.bio || "Discover this featured artist's creative practice."}</p>
-                {artist.skills.length > 0 && <p className="mt-3 text-xs text-[#d2b46a]">{artist.skills.join(" · ")}</p>}
+              <div className="p-5 pt-4">
+                {!artist.hasPhoto && (artist.city || artist.state) && <p className="text-xs text-[#a99b7e]">{[artist.city, artist.state].filter(Boolean).join(", ")}</p>}
+                <p className="line-clamp-3 text-sm leading-6 text-[#c9bea2]">{artist.bio || "Discover this featured artist's creative practice."}</p>
+                {artist.skills.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {artist.skills.slice(0, 4).map((skill) => (
+                      <span className="rounded-full border border-[#d9af57]/15 bg-[#d9af57]/[0.06] px-2.5 py-1 text-[10px] text-[#d2b46a]" key={skill}>{skill}</span>
+                    ))}
+                  </div>
+                )}
+                <span className="mt-5 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#edcf81]">
+                  View artist profile <span aria-hidden="true">→</span>
+                </span>
               </div>
             </Link>
           ))}

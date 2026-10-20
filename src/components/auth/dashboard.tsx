@@ -7,17 +7,19 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AdminOverview } from "@/components/auth/admin-overview";
 import { ArtistFeatureRequest } from "@/components/auth/artist-feature-request";
 import { ArtistProfile } from "@/components/auth/artist-profile";
-import { RegistrationForm } from "@/components/home/registration-form";
 import { useAuth, type ArtistRegistration } from "@/components/auth/auth-context";
 
 const adminNavigation = [
   { href: "/dashboard", label: "Overview", icon: "overview" },
+  { href: "/dashboard/content", label: "Website content", icon: "content" },
   { href: "/dashboard/events", label: "Events", icon: "events" },
   { href: "/dashboard/skills", label: "Skills", icon: "skills" },
   { href: "/dashboard/artists", label: "Artists", icon: "artists" },
+  { href: "/dashboard/users", label: "Accounts", icon: "artists" },
+  { href: "/dashboard/sponsors", label: "Sponsors", icon: "sponsors" },
 ] as const;
 
-function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "artists" | "artist" }) {
+function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "artists" | "artist" | "sponsors" | "content" }) {
   if (name === "overview") {
     return (
       <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" className="h-5 w-5">
@@ -51,6 +53,20 @@ function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "art
       </svg>
     );
   }
+  if (name === "sponsors") {
+    return (
+      <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" className="h-5 w-5">
+        <path d="M12 3.5 14.5 9l6 .7-4.5 4.1 1.2 5.9L12 16.8l-5.2 2.9L8 13.8 3.5 9.7l6-.7L12 3.5Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
+      </svg>
+    );
+  }
+  if (name === "content") {
+    return (
+      <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" className="h-5 w-5">
+        <path d="M5 5.5h14M5 10h14M5 14.5h9M5 19h9" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+      </svg>
+    );
+  }
   return (
     <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" className="h-5 w-5">
       <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6" />
@@ -61,13 +77,18 @@ function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "art
 
 function routeTitle(pathname: string, isAdmin: boolean): string {
   if (!isAdmin && pathname.startsWith("/dashboard/artist/featured")) return "Public profile";
+  if (!isAdmin && pathname.startsWith("/dashboard/artist/registration-success")) return "Registration confirmed";
+  if (!isAdmin && pathname.startsWith("/dashboard/artist/register")) return "Register for event";
   if (!isAdmin || pathname === "/dashboard/artist") return "My registrations";
   if (pathname.startsWith("/dashboard/events/new")) return "Create event";
+  if (pathname.startsWith("/dashboard/content")) return "Website content";
   if (pathname.includes("/overview")) return "Event overview";
   if (pathname.startsWith("/dashboard/events/")) return "Edit event";
   if (pathname.startsWith("/dashboard/events")) return "Events";
   if (pathname.startsWith("/dashboard/skills")) return "Performance skills";
   if (pathname.startsWith("/dashboard/artists")) return "Artists";
+  if (pathname.startsWith("/dashboard/users")) return "Account directory";
+  if (pathname.startsWith("/dashboard/sponsors")) return "Sponsors";
   return "Overview";
 }
 
@@ -174,6 +195,17 @@ export function Dashboard({ children }: { children: ReactNode }) {
               <DashboardIcon name="artist" />
               Public profile
             </Link>
+            <Link
+              aria-current={pathname.startsWith("/dashboard/artist/register") ? "page" : undefined}
+              className={`mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-xs ${
+                pathname.startsWith("/dashboard/artist/register") ? "bg-[#d9af57]/10 text-[#f3d98c]" : "text-[#a99b7e] hover:bg-white/[0.04]"
+              }`}
+              href="/dashboard/artist/register"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <DashboardIcon name="events" />
+              Register for events
+            </Link>
           </>
         )}
       </>
@@ -261,6 +293,7 @@ export function DashboardHome() {
     type: string;
     startsAt: string;
     location: string;
+    city: string;
     description: string;
     price: number;
     capacity: number | null;
@@ -272,6 +305,8 @@ export function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentTime, setCurrentTime] = useState<number | null>(null);
+  const [activeEventIndex, setActiveEventIndex] = useState(0);
+  const [activeRegistrationIndex, setActiveRegistrationIndex] = useState(0);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setCurrentTime(Date.now()), 0);
@@ -281,6 +316,14 @@ export function DashboardHome() {
       window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (upcomingEvents.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setActiveEventIndex((index) => (index + 1) % upcomingEvents.length);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [upcomingEvents.length]);
 
   useEffect(() => {
     if (user?.role !== "artist") return;
@@ -313,6 +356,7 @@ export function DashboardHome() {
             typeof item.type === "string" &&
             typeof item.startsAt === "string" &&
             typeof item.location === "string" &&
+            typeof item.city === "string" &&
             typeof item.description === "string" &&
             typeof item.price === "number" &&
             (item.capacity === null || typeof item.capacity === "number") &&
@@ -322,6 +366,7 @@ export function DashboardHome() {
         });
         if (active) {
           setUpcomingEvents(parsed);
+          setActiveEventIndex(0);
           setEventsError("");
         }
       })
@@ -388,7 +433,10 @@ export function DashboardHome() {
               : {}),
           };
         }).filter((entry): entry is ArtistRegistration => entry !== null);
-        if (active) setServerRegistrations(parsed);
+        if (active) {
+          setServerRegistrations(parsed);
+          setActiveRegistrationIndex(0);
+        }
       })
       .catch((cause: unknown) => {
         console.error("Could not load artist registrations.", cause);
@@ -402,10 +450,17 @@ export function DashboardHome() {
     };
   }, [user]);
 
-  if (user?.role === "admin") return <AdminOverview />;
   const visibleRegistrations = user?.provider
     ? serverRegistrations
     : registrations.filter((registration) => registration.email === user?.email);
+  useEffect(() => {
+    if (visibleRegistrations.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setActiveRegistrationIndex((index) => (index + 1) % visibleRegistrations.length);
+    }, 6500);
+    return () => window.clearInterval(timer);
+  }, [visibleRegistrations.length]);
+  if (user?.role === "admin") return <AdminOverview />;
   const performedRegistrations = visibleRegistrations.filter((registration) =>
     registration.willPerform !== false &&
     Boolean(registration.eventStartsAt) &&
@@ -418,6 +473,20 @@ export function DashboardHome() {
       currentTime === null ||
       new Date(registration.eventStartsAt).getTime() >= currentTime),
   );
+  const activeEvent = upcomingEvents[activeEventIndex];
+  const activeRegistration = visibleRegistrations[activeRegistrationIndex];
+
+  function moveEvent(direction: -1 | 1) {
+    setActiveEventIndex((index) =>
+      (index + direction + upcomingEvents.length) % upcomingEvents.length,
+    );
+  }
+
+  function moveRegistration(direction: -1 | 1) {
+    setActiveRegistrationIndex((index) =>
+      (index + direction + visibleRegistrations.length) % visibleRegistrations.length,
+    );
+  }
 
   return (
     <section className="space-y-8" aria-labelledby="my-registrations-heading">
@@ -488,58 +557,61 @@ export function DashboardHome() {
           <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">Loading upcoming events...</p>
         ) : upcomingEvents.length === 0 ? (
           <div className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">No upcoming events just yet.</div>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {upcomingEvents.map((event) => (
-              <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#10100f]" key={event.id}>
-                <div className="border-b border-white/[0.06] bg-gradient-to-r from-[#d9af57]/[0.07] to-transparent p-5">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">{event.type}</p>
-                  <h2 className="mt-2 font-[var(--font-display)] text-2xl text-[#f7ebc0]">{event.title}</h2>
-                  <p className="mt-2 text-xs leading-5 text-[#d8c8a2]">
-                    {new Intl.DateTimeFormat("en-IN", {
-                      dateStyle: "full",
-                      timeStyle: "short",
-                      timeZone: "Asia/Kolkata",
-                    }).format(new Date(event.startsAt))}
-                    {" · "}{event.location}
-                  </p>
-                </div>
-                <div className="p-5">
-                  <p className="text-sm leading-6 text-[#c9bea2]">{event.description}</p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#d2b46a]">
-                    <span className="rounded-full border border-[#d9af57]/20 px-3 py-1">
-                      {event.price === 0
-                        ? "Free entry"
-                        : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(event.price)}
-                    </span>
-                    {event.capacity !== null && <span className="rounded-full border border-white/[0.08] px-3 py-1">{event.capacity} seats</span>}
-                    {event.organizer && <span className="rounded-full border border-white/[0.08] px-3 py-1">Hosted by {event.organizer}</span>}
+        ) : activeEvent ? (
+          <div className="dashboard-card-hover overflow-hidden rounded-2xl border border-white/[0.08] bg-[#10100f]" aria-roledescription="carousel" aria-label="Upcoming events">
+            <article key={activeEvent.id} className="dashboard-enter">
+              <div className="border-b border-white/[0.06] bg-[radial-gradient(circle_at_top_right,rgba(217,175,87,0.12),transparent_45%),linear-gradient(90deg,#19160f,#10100f)] p-5 sm:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">{activeEvent.type}</p>
+                    <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[#f7ebc0] sm:text-4xl">{activeEvent.title}</h2>
+                    <p className="mt-2 text-xs leading-5 text-[#d8c8a2]">
+                      {new Intl.DateTimeFormat("en-IN", {
+                        dateStyle: "full",
+                        timeStyle: "short",
+                        timeZone: "Asia/Kolkata",
+                      }).format(new Date(activeEvent.startsAt))}
+                      {" · "}{activeEvent.location}{activeEvent.city ? `, ${activeEvent.city}` : ""}
+                    </p>
                   </div>
-                  <Link
-                    className="mt-4 inline-flex min-h-9 items-center text-[10px] font-semibold uppercase tracking-[0.16em] text-[#f0ddab] underline underline-offset-4"
-                    href={`/events/${event.id}`}
-                  >
+                  {upcomingEvents.length > 1 && (
+                    <div className="flex items-center gap-2" aria-label="Event carousel controls">
+                      <button aria-label="Previous event" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50 hover:bg-[#d9af57]/[0.08]" onClick={() => moveEvent(-1)} type="button">←</button>
+                      <span className="min-w-12 text-center text-xs tabular-nums text-[#a99b7e]" aria-live="polite">{activeEventIndex + 1} / {upcomingEvents.length}</span>
+                      <button aria-label="Next event" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50 hover:bg-[#d9af57]/[0.08]" onClick={() => moveEvent(1)} type="button">→</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="p-5 sm:p-7">
+                <p className="max-w-3xl text-sm leading-7 text-[#c9bea2]">{activeEvent.description}</p>
+                <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#d2b46a]">
+                  <span className="rounded-full border border-[#d9af57]/20 px-3 py-1.5">
+                    {activeEvent.price === 0
+                      ? "Free entry"
+                      : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(activeEvent.price)}
+                  </span>
+                  {activeEvent.capacity !== null && <span className="rounded-full border border-white/[0.08] px-3 py-1.5">{activeEvent.capacity} seats</span>}
+                  {activeEvent.organizer && <span className="rounded-full border border-white/[0.08] px-3 py-1.5">Hosted by {activeEvent.organizer}</span>}
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3 border-t border-white/[0.07] pt-5">
+                  <Link className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#d9af57] px-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#15130e] transition hover:bg-[#f2d98b]" href={`/dashboard/artist/register?event=${encodeURIComponent(activeEvent.id)}`}>
+                    Register for this event
+                  </Link>
+                  <Link className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/[0.12] px-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4d9bc] transition hover:border-[#d9af57]/45 hover:text-white" href={`/events/${activeEvent.id}`}>
                     Full event details
                   </Link>
-                  <div className="mt-5 border-t border-white/[0.07] pt-5">
-                    <RegistrationForm
-                      eventChoices={[{ id: event.id, title: event.title, skillIds: event.skillIds, price: event.price }]}
-                      eventNames={[event.title]}
-                      selectedEvent={event.title}
-                      selectedEventId={event.id}
-                    />
-                  </div>
                 </div>
-              </article>
-            ))}
+              </div>
+            </article>
           </div>
-        )}
+        ) : null}
       </section>
       <div className="mb-5">
         <p className="text-[9px] uppercase tracking-[0.2em] text-[#a79a7d]">Your event history</p>
-        <h1 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="my-registrations-heading">
+        <h2 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="my-registrations-heading">
           My registrations <span className="text-[#d9af57]">({visibleRegistrations.length})</span>
-        </h1>
+        </h2>
       </div>
       {(error || storageError) && (
         <p className="mb-4 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{error || storageError}</p>
@@ -548,37 +620,44 @@ export function DashboardHome() {
         <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">Loading registrations...</p>
       ) : visibleRegistrations.length === 0 ? (
         <div className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">No event registrations yet.</div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#10100f]">
-          {visibleRegistrations.map((registration, index) => (
-            <article className={`flex min-w-0 flex-col justify-between gap-2 p-4 sm:flex-row sm:items-center ${index > 0 ? "border-t border-white/[0.06]" : ""}`} key={registration.id}>
+      ) : activeRegistration ? (
+        <div className="dashboard-card-hover rounded-2xl border border-white/[0.08] bg-[linear-gradient(140deg,#14130f,#10100f_65%)] p-5 sm:p-7" aria-roledescription="carousel" aria-label="Your registrations">
+          <article key={activeRegistration.id} className="dashboard-enter">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <h2 className="break-words text-sm font-medium text-[#f0e6ce]">{registration.eventName}</h2>
-                <p className="mt-1 text-xs text-[#827864]">Registered as {registration.name}</p>
-                {registration.skillNames && registration.skillNames.length > 0 && (
-                  <p className="mt-2 text-xs text-[#d2b46a]">Performing: {registration.skillNames.join(" · ")}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">Registration confirmed</p>
+                <h3 className="mt-2 break-words font-[var(--font-display)] text-3xl text-[#fff5d9]">{activeRegistration.eventName}</h3>
+                <p className="mt-2 text-xs text-[#827864]">Registered as {activeRegistration.name}</p>
+                {activeRegistration.skillNames && activeRegistration.skillNames.length > 0 && (
+                  <p className="mt-3 text-xs text-[#d2b46a]">Performing: {activeRegistration.skillNames.join(" · ")}</p>
                 )}
-                {registration.willPerform === false && (
-                  <p className="mt-2 text-xs text-red-200">The event team has marked you as not performing for this event.</p>
-                )}
-                {registration.willPerform !== false && registration.eventStartsAt && (
-                  <p className="mt-2 text-xs text-emerald-200">
-                    {currentTime !== null && new Date(registration.eventStartsAt).getTime() < currentTime ? "Performed" : "Performing"}
+                {activeRegistration.willPerform === false ? (
+                  <p className="mt-3 text-xs text-red-200">The event team has marked you as not performing for this event.</p>
+                ) : activeRegistration.eventStartsAt && (
+                  <p className="mt-3 text-xs text-emerald-200">
+                    {currentTime !== null && new Date(activeRegistration.eventStartsAt).getTime() < currentTime ? "Performed" : "Performing"}
                   </p>
                 )}
+                <time className="mt-4 block text-[10px] text-[#827864]" dateTime={activeRegistration.createdAt}>
+                  Registered {new Date(activeRegistration.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                </time>
+                {activeRegistration.eventId && (
+                  <Link className="mt-5 inline-flex min-h-10 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f0ddab] underline underline-offset-4" href={`/events/${activeRegistration.eventId}`}>
+                    Event details
+                  </Link>
+                )}
               </div>
-              {registration.eventId && (
-                <Link className="text-[10px] uppercase tracking-[0.14em] text-[#f0ddab] underline underline-offset-4" href={`/events/${registration.eventId}`}>
-                  Event details
-                </Link>
+              {visibleRegistrations.length > 1 && (
+                <div className="flex shrink-0 items-center gap-2" aria-label="Registration carousel controls">
+                  <button aria-label="Previous registration" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50" onClick={() => moveRegistration(-1)} type="button">←</button>
+                  <span className="min-w-12 text-center text-xs tabular-nums text-[#a99b7e]" aria-live="polite">{activeRegistrationIndex + 1} / {visibleRegistrations.length}</span>
+                  <button aria-label="Next registration" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50" onClick={() => moveRegistration(1)} type="button">→</button>
+                </div>
               )}
-              <time className="shrink-0 text-[10px] text-[#827864]" dateTime={registration.createdAt}>
-                {new Date(registration.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-              </time>
-            </article>
-          ))}
+            </div>
+          </article>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

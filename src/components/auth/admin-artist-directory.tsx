@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { ArtistDirectoryEntry } from "@/services/artist-directory";
 
@@ -38,15 +39,17 @@ function isArtist(value: unknown): value is ArtistDirectoryEntry {
 }
 
 export function AdminArtistDirectory() {
+  const searchParams = useSearchParams();
+  const initialEmail = searchParams.get("email")?.trim().toLowerCase() ?? "";
   const [artists, setArtists] = useState<ArtistDirectoryEntry[]>([]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialEmail);
   const [roleFilter, setRoleFilter] = useState("all");
   const [featureFilter, setFeatureFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("name");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [expandedEmail, setExpandedEmail] = useState("");
+  const [expandedEmail, setExpandedEmail] = useState(initialEmail);
   const [updatingEmail, setUpdatingEmail] = useState("");
   const [historyQueryByEmail, setHistoryQueryByEmail] = useState<Record<string, string>>({});
 
@@ -284,14 +287,15 @@ export function AdminArtistDirectory() {
           </p>
         </div>
       ) : (
-        <div className="mt-5 grid gap-3">
+        <div className="mt-5 max-h-[70vh] space-y-3 overflow-y-auto overscroll-contain pr-1">
           {filteredArtists.map((artist) => (
             <article
-              className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#10100f]"
+              className="min-w-0 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#10100f]"
               key={artist.email}
             >
               <div className="flex min-w-0 flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                 <button
+                  aria-label={`${expandedEmail === artist.email ? "Hide" : "View"} ${artist.name}'s full profile`}
                   aria-expanded={expandedEmail === artist.email}
                   className="flex min-w-0 items-center gap-3 text-left"
                   onClick={() => setExpandedEmail((current) => current === artist.email ? "" : artist.email)}
@@ -315,9 +319,10 @@ export function AdminArtistDirectory() {
                     </span>
                   )}
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-[#f0e6ce]">{artist.name}</span>
+                    <span className="block break-words text-sm font-medium text-[#f0e6ce]">{artist.name}</span>
                     <span className="mt-1 block break-all text-xs text-[#90856f]">{artist.email}</span>
                     {artist.phone && <span className="mt-1 block text-xs text-[#827864]">{artist.phone}</span>}
+                    <span className="mt-1 block text-[10px] text-[#d2b46a]">{expandedEmail === artist.email ? "Hide profile details" : "View full profile"}</span>
                   </span>
                 </button>
                 <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.06] pt-3 sm:justify-end sm:border-0 sm:pt-0">

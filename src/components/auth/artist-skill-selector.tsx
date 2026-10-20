@@ -37,15 +37,14 @@ export function ArtistSkillSelector({
         const descriptionId = `${idPrefix}-skill-description-${skill.id}`;
         return (
           <label
-            className={`group relative flex min-h-16 items-center gap-3 rounded-xl border px-4 py-3 transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#d9af57] ${
-              disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+            className={`group flex min-h-20 items-start gap-3 rounded-xl border px-4 py-4 transition duration-200 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#f0cf75] ${
+              disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:-translate-y-0.5 hover:border-[#d9af57]/55 hover:bg-[#17150f]"
             } ${
               checked
-                ? "border-[#d9af57]/60 bg-[#d9af57]/[0.08]"
-                : "border-white/[0.08] bg-[#0b0b0a] hover:border-[#d9af57]/35"
+                ? "border-[#d9af57]/65 bg-[#d9af57]/[0.09] shadow-[inset_0_0_0_1px_rgba(217,175,87,0.08)]"
+                : "border-white/[0.1] bg-[#0d0d0c]"
             }`}
             key={skill.id}
-            title={skill.description}
           >
             <input
               aria-describedby={descriptionId}
@@ -55,21 +54,21 @@ export function ArtistSkillSelector({
               onChange={() => toggleSkill(skill.id)}
               type="checkbox"
             />
-            <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border transition ${
-              checked ? "border-[#d9af57] bg-[#d9af57] text-[#121212]" : "border-[#8f805f] bg-transparent text-transparent"
+            <span aria-hidden="true" className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border transition ${
+              checked
+                ? "border-[#f0cf75] bg-[#e0b858] text-[#15130e] shadow-[0_0_14px_rgba(217,175,87,0.2)]"
+                : "border-[#9b8c6d] bg-[#090909] text-transparent group-hover:border-[#e1bd68]"
             }`}>
               <svg fill="none" viewBox="0 0 16 16" className="h-3.5 w-3.5">
                 <path d="m3 8 3.2 3.2L13 4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
               </svg>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-[#f0e6ce]">{skill.name}</span>
-              <span className="mt-1 block text-xs text-[#827864] sm:hidden">{skill.description}</span>
+              <span className="block text-sm font-semibold leading-5 text-[#fff5d9]">{skill.name}</span>
+              <span className="mt-1.5 block text-xs leading-5 text-[#c3b89f]" id={descriptionId}>
+                {skill.description || "Add this skill to your artist profile."}
+              </span>
             </span>
-            <span className="pointer-events-none absolute bottom-full left-3 z-20 mb-2 max-w-[calc(100%-1.5rem)] rounded-lg border border-[#d9af57]/30 bg-[#191711] px-3 py-2 text-xs leading-5 text-[#f0e6ce] opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              {skill.description}
-            </span>
-            <span className="sr-only" id={descriptionId}>{skill.description}</span>
           </label>
         );
       })}

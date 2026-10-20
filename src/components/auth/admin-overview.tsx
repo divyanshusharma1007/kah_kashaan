@@ -1,14 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   AdminOverviewData,
-  AdminUserSummary,
+  EventCommitment,
   RecentEvent,
   RecentRegistration,
 } from "@/services/admin-overview";
+import { getEventLifecycleStatus } from "@/lib/event-lifecycle";
 
 function isRecentRegistration(value: unknown): value is RecentRegistration {
   if (!value || typeof value !== "object") return false;
@@ -17,6 +17,7 @@ function isRecentRegistration(value: unknown): value is RecentRegistration {
     typeof registration.email === "string" &&
     typeof registration.phone === "string" &&
     typeof registration.eventName === "string" &&
+    (registration.eventId === undefined || typeof registration.eventId === "string") &&
     (typeof registration.eventPrice === "number" || registration.eventPrice === null) &&
     (registration.paymentStatus === "paid" ||
       registration.paymentStatus === "due" ||
@@ -37,26 +38,24 @@ function isRecentEvent(value: unknown): value is RecentEvent {
     typeof event.title === "string" &&
     typeof event.type === "string" &&
     typeof event.startsAt === "string" &&
+    typeof event.city === "string" &&
     (event.status === "published" || event.status === "draft") &&
     typeof event.createdAt === "string";
 }
 
-function isAdminUser(value: unknown): value is AdminUserSummary {
+function isEventCommitment(value: unknown): value is EventCommitment {
   if (!value || typeof value !== "object") return false;
-  const user = value as Partial<AdminUserSummary>;
-  return typeof user.name === "string" &&
-    typeof user.email === "string" &&
-    typeof user.role === "string" &&
-    (typeof user.createdAt === "string" || user.createdAt === null) &&
-    typeof user.phone === "string" &&
-    typeof user.address === "string" &&
-    typeof user.city === "string" &&
-    typeof user.state === "string" &&
-    typeof user.pinCode === "string" &&
-    typeof user.bio === "string" &&
-    Array.isArray(user.skills) &&
-    user.skills.every((skill) => typeof skill === "string") &&
-    (user.photoFileId === null || typeof user.photoFileId === "string");
+  const commitment = value as Partial<EventCommitment>;
+  return typeof commitment.name === "string" &&
+    typeof commitment.email === "string" &&
+    typeof commitment.eventName === "string" &&
+    (commitment.eventId === undefined || typeof commitment.eventId === "string") &&
+    typeof commitment.createdAt === "string" &&
+    typeof commitment.willPerform === "boolean" &&
+    (commitment.paymentMethod === "razorpay" ||
+      commitment.paymentMethod === "at-event" ||
+      commitment.paymentMethod === "free" ||
+      commitment.paymentMethod === "legacy");
 }
 
 function isOverview(value: unknown): value is AdminOverviewData {
@@ -77,39 +76,9 @@ function isOverview(value: unknown): value is AdminOverviewData {
     Array.isArray(overview.recentEvents) &&
     overview.recentEvents.every(isRecentEvent) &&
     Array.isArray(overview.recentRegistrations) &&
-    overview.recentRegistrations.every(isRecentRegistration);
-}
-
-async function fetchUserPage(offset: number): Promise<{
-  users: AdminUserSummary[];
-  hasMore: boolean;
-}> {
-  const response = await fetch(`/api/admin/overview/users?offset=${offset}`, { cache: "no-store" });
-  let result: unknown;
-  try {
-    result = await response.json();
-  } catch {
-    throw new Error("The dashboard user list returned an invalid response.");
-  }
-  if (!response.ok) {
-    const message =
-      result && typeof result === "object" && "error" in result && typeof result.error === "string"
-        ? result.error
-        : "Could not load dashboard users.";
-    throw new Error(message);
-  }
-  if (
-    !result ||
-    typeof result !== "object" ||
-    !("users" in result) ||
-    !Array.isArray(result.users) ||
-    !result.users.every(isAdminUser) ||
-    !("hasMore" in result) ||
-    typeof result.hasMore !== "boolean"
-  ) {
-    throw new Error("The dashboard user list returned an invalid response.");
-  }
-  return { users: result.users, hasMore: result.hasMore };
+    overview.recentRegistrations.every(isRecentRegistration) &&
+    Array.isArray(overview.eventCommitments) &&
+    overview.eventCommitments.every(isEventCommitment);
 }
 
 async function fetchOverview(): Promise<AdminOverviewData> {
@@ -155,14 +124,6 @@ export function AdminOverview() {
   const [error, setError] = useState("");
   const [activeRegistration, setActiveRegistration] = useState(0);
   const [activeEvent, setActiveEvent] = useState(0);
-  const [users, setUsers] = useState<AdminUserSummary[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-  const [usersHasMore, setUsersHasMore] = useState(false);
-  const [usersError, setUsersError] = useState("");
-  const [expandedUserEmail, setExpandedUserEmail] = useState("");
-  const [userQuery, setUserQuery] = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState("all");
-  const [userSortOrder, setUserSortOrder] = useState("recent");
 
   useEffect(() => {
     let active = true;
@@ -185,23 +146,6 @@ export function AdminOverview() {
     }
 
     void loadOverview();
-
-    async function loadUsers() {
-      try {
-        const page = await fetchUserPage(0);
-        if (active) {
-          setUsers(page.users);
-          setUsersHasMore(page.hasMore);
-          setUsersError("");
-        }
-      } catch (cause) {
-        console.error("Could not load dashboard users.", cause);
-        if (active) setUsersError(cause instanceof Error ? cause.message : "Could not load users.");
-      } finally {
-        if (active) setUsersLoading(false);
-      }
-    }
-    void loadUsers();
 
     const refresh = window.setInterval(() => void loadOverview(), 60_000);
     return () => {
@@ -241,41 +185,12 @@ export function AdminOverview() {
     setActiveEvent((index) => (index + direction + recentEvents.length) % recentEvents.length);
   }
 
-  async function loadMoreUsers() {
-    if (usersLoading || (!usersHasMore && users.length > 0)) return;
-    setUsersLoading(true);
-    setUsersError("");
-    try {
-      const page = await fetchUserPage(users.length);
-      setUsers((current) => [...current, ...page.users]);
-      setUsersHasMore(page.hasMore);
-    } catch (cause) {
-      console.error("Could not load more dashboard users.", cause);
-      setUsersError(cause instanceof Error ? cause.message : "Could not load users.");
-    } finally {
-      setUsersLoading(false);
-    }
-  }
-
-  const filteredUsers = useMemo(() => {
-    const query = userQuery.trim().toLowerCase();
-    return users
-      .filter((user) =>
-        (userRoleFilter === "all" || user.role === userRoleFilter) &&
-        (!query || `${user.name} ${user.email} ${user.phone} ${user.address} ${user.city} ${user.state} ${user.skills.join(" ")} ${user.bio}`
-          .toLowerCase()
-          .includes(query)),
-      )
-      .sort((left, right) => userSortOrder === "name"
-        ? left.name.localeCompare(right.name)
-        : (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
-  }, [users, userQuery, userRoleFilter, userSortOrder]);
-
   const statistics = [
     {
       label: "Users",
       value: overview?.userCount,
       note: "Account records",
+      href: "/dashboard/users",
       icon: "◉",
       accent: "text-sky-200",
       border: "border-sky-300/15",
@@ -284,6 +199,7 @@ export function AdminOverview() {
       label: "Admins",
       value: overview?.adminCount,
       note: "Admin accounts",
+      href: "/dashboard/users",
       icon: "◆",
       accent: "text-rose-200",
       border: "border-rose-300/15",
@@ -292,6 +208,7 @@ export function AdminOverview() {
       label: "Artists",
       value: overview?.artistCount,
       note: "Artist accounts",
+      href: "/dashboard/artists",
       icon: "♬",
       accent: "text-fuchsia-200",
       border: "border-fuchsia-300/15",
@@ -300,6 +217,7 @@ export function AdminOverview() {
       label: "Events",
       value: overview?.eventCount,
       note: `${overview?.upcomingEventCount ?? 0} upcoming`,
+      href: "/dashboard/events",
       icon: "▦",
       accent: "text-violet-200",
       border: "border-violet-300/15",
@@ -308,6 +226,7 @@ export function AdminOverview() {
       label: "Income today",
       value: overview ? formatMoney(overview.todayRegistrationValue) : undefined,
       note: `${overview?.todayRegistrationCount ?? 0} registrations`,
+      href: "/dashboard/events",
       icon: "↗",
       accent: "text-emerald-200",
       border: "border-emerald-300/15",
@@ -316,6 +235,7 @@ export function AdminOverview() {
       label: "Income this month",
       value: overview ? formatMoney(overview.monthRegistrationValue) : undefined,
       note: `${overview?.monthRegistrationCount ?? 0} registrations`,
+      href: "/dashboard/events",
       icon: "◷",
       accent: "text-amber-200",
       border: "border-amber-300/15",
@@ -324,7 +244,7 @@ export function AdminOverview() {
 
   return (
     <section aria-label="Admin overview">
-      <div className="mb-5">
+      <div className="mb-3 lg:mb-2">
         <p className="text-[9px] uppercase tracking-[0.2em] text-[#a79a7d]">At a glance</p>
         <h1 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9] sm:text-4xl">Overview</h1>
       </div>
@@ -334,10 +254,12 @@ export function AdminOverview() {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-6">
         {statistics.map((stat) => (
-          <article
-            className={`min-w-0 rounded-2xl border ${stat.border} bg-[#10100f] p-4 sm:p-5`}
+          <Link
+            aria-label={`${stat.label}: ${loading ? "loading" : stat.value}. ${stat.note}`}
+            className={`block min-w-0 rounded-xl border ${stat.border} bg-[#10100f] p-2.5 transition hover:border-[#d9af57]/40 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9af57] sm:p-3`}
+            href={stat.href}
             key={stat.label}
           >
             <div className="flex items-center justify-between gap-2">
@@ -346,23 +268,23 @@ export function AdminOverview() {
               </p>
               <span aria-hidden="true" className={`text-base ${stat.accent}`}>{stat.icon}</span>
             </div>
-            <p className="mt-4 truncate font-[var(--font-display)] text-3xl text-[#fff5d9] sm:text-4xl">
+            <p className="mt-1 truncate font-[var(--font-display)] text-2xl text-[#fff5d9]">
               {loading ? "—" : stat.value}
             </p>
             <p className="mt-1 truncate text-[10px] text-[#827864] sm:text-xs">{stat.note}</p>
-          </article>
+          </Link>
         ))}
       </div>
 
-      <p className="mt-2 text-[10px] leading-5 text-[#716954]">
+      <p className="mt-1 text-[9px] leading-4 text-[#716954]">
         Account totals exclude accounts awaiting email verification. Online activity is not tracked. Income figures are estimates from registrations and listed ticket prices; payments are not verified.
       </p>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
+      <div className="mt-3 grid gap-3 lg:grid-cols-3">
         <article
           aria-label="Recently added events"
           aria-live="polite"
-          className="min-w-0 rounded-2xl border border-white/[0.07] bg-[#10100f] p-4 sm:p-5"
+          className="min-w-0 rounded-xl border border-white/[0.07] bg-[#10100f] p-3"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -402,16 +324,19 @@ export function AdminOverview() {
               className="block rounded-xl outline-none transition hover:bg-white/[0.025] focus-visible:ring-2 focus-visible:ring-[#d9af57]"
               href={`/dashboard/events/${encodeURIComponent(selectedEvent.id)}/overview`}
             >
-              <h3 className="break-words font-[var(--font-display)] text-2xl leading-tight text-[#f7ebc0]">
+              <h3 className="break-words font-[var(--font-display)] text-xl leading-tight text-[#f7ebc0]">
                 {selectedEvent.title}
               </h3>
               <p className="mt-2 text-xs text-[#b9ab8c]">
                 {selectedEvent.type} · {formatDate(selectedEvent.startsAt)}
               </p>
-              <p className="mt-3 text-[10px] text-[#746d5b]">
+              {selectedEvent.city && <p className="mt-1 text-xs text-[#a99b7e]">{selectedEvent.city}</p>}
+              <p className="mt-2 text-[10px] text-[#746d5b]">
                 Added {formatDate(selectedEvent.createdAt)}
                 <span className="px-2">·</span>
-                {selectedEvent.status}
+                {getEventLifecycleStatus(selectedEvent.status, selectedEvent.startsAt) === "completed"
+                  ? "Done"
+                  : selectedEvent.status}
               </p>
             </Link>
           ) : (
@@ -422,7 +347,7 @@ export function AdminOverview() {
         <article
           aria-label="Recent event registrations"
           aria-live="polite"
-          className="min-w-0 rounded-2xl border border-[#d9af57]/15 bg-[linear-gradient(135deg,rgba(31,27,18,0.78),rgba(16,16,15,0.96)_55%)] p-4 sm:p-5"
+          className="min-w-0 rounded-xl border border-[#d9af57]/15 bg-[linear-gradient(135deg,rgba(31,27,18,0.78),rgba(16,16,15,0.96)_55%)] p-3"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -459,7 +384,7 @@ export function AdminOverview() {
           {loading ? (
             <p className="mt-5 text-sm text-[#827864]" role="status">Loading registrations...</p>
           ) : selectedRegistration ? (
-            <div className="mt-4 flex min-w-0 items-center gap-3">
+            <div className="mt-3 flex min-w-0 items-center gap-3">
               <span
                 aria-hidden="true"
                 className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#d9af57]/20 bg-[#d9af57]/[0.08] font-[var(--font-display)] text-xl text-[#edcf81]"
@@ -467,11 +392,21 @@ export function AdminOverview() {
                 {selectedRegistration.name.trim().charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[#f0e6ce]">{selectedRegistration.name}</p>
+                <Link
+                  className="block truncate text-sm font-medium text-[#f0e6ce] hover:text-[#f7ebc0] focus-visible:outline-none focus-visible:underline"
+                  href={`/dashboard/artists?email=${encodeURIComponent(selectedRegistration.email)}`}
+                >
+                  {selectedRegistration.name}
+                </Link>
                 <p className="truncate text-[10px] text-[#8c826d]">{selectedRegistration.email}</p>
-                <p className="mt-1 truncate text-xs text-[#d2b46a]">
+                <Link
+                  className="mt-1 block truncate text-xs text-[#d2b46a] hover:text-[#f7ebc0] focus-visible:outline-none focus-visible:underline"
+                  href={selectedRegistration.eventId
+                    ? `/dashboard/events/${encodeURIComponent(selectedRegistration.eventId)}/overview`
+                    : "/dashboard/events"}
+                >
                   Registered for {selectedRegistration.eventName}
-                </p>
+                </Link>
               </div>
               <div className="hidden shrink-0 text-right sm:block">
                 <p className="text-[10px] text-[#b9ab8c]">{formatDate(selectedRegistration.createdAt)}</p>
@@ -498,145 +433,66 @@ export function AdminOverview() {
             </div>
           )}
         </article>
+
+        <article
+          aria-label="Performers and pay-at-event registrations"
+          className="min-w-0 rounded-xl border border-emerald-300/15 bg-[#10100f] p-3"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-200/70">Unpaid commitments</p>
+              <h2 className="mt-1 text-sm font-medium text-[#f0e6ce]">Pay at event</h2>
+            </div>
+            <span className="rounded-full border border-emerald-300/15 px-2 py-1 text-[10px] text-emerald-100">
+              {overview?.eventCommitments.length ?? 0}
+            </span>
+          </div>
+          {loading ? (
+            <p className="mt-3 text-xs text-[#827864]" role="status">Loading event commitments...</p>
+          ) : overview?.eventCommitments.length ? (
+            <ul className="mt-2 max-h-40 divide-y divide-white/[0.06] overflow-y-auto overscroll-contain">
+              {overview.eventCommitments.map((commitment, index) => (
+                <li className="flex min-w-0 items-start justify-between gap-2 py-2" key={`${commitment.email}-${commitment.eventName}-${index}`}>
+                  <span className="min-w-0">
+                    <Link
+                      className="block break-words text-xs font-medium text-[#f0e6ce] hover:text-[#f7ebc0] focus-visible:outline-none focus-visible:underline"
+                      href={`/dashboard/artists?email=${encodeURIComponent(commitment.email)}`}
+                    >
+                      {commitment.name}
+                    </Link>
+                    <Link
+                      className="mt-0.5 block truncate text-[10px] text-[#8c826d] hover:text-[#f7ebc0] focus-visible:outline-none focus-visible:underline"
+                      href={commitment.eventId
+                        ? `/dashboard/events/${encodeURIComponent(commitment.eventId)}/overview`
+                        : "/dashboard/events"}
+                    >
+                      {commitment.eventName}
+                    </Link>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    {commitment.willPerform && <span className="rounded-full bg-fuchsia-950/40 px-2 py-0.5 text-[9px] text-fuchsia-200">Performing</span>}
+                    {commitment.paymentMethod === "at-event" && <span className="rounded-full bg-amber-950/40 px-2 py-0.5 text-[9px] text-amber-100">Pay at event</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-xs text-[#827864]">No unpaid pay-at-event registrations.</p>
+          )}
+        </article>
       </div>
 
-      <section aria-labelledby="dashboard-users-heading" className="mt-5">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#928873]">
-              Account directory
-            </p>
-            <h2 className="mt-1 font-[var(--font-display)] text-2xl text-[#fff5d9]" id="dashboard-users-heading">
-              Users
-            </h2>
-            <p className="mt-1 text-xs text-[#827864]">{overview?.userCount ?? 0} verified accounts</p>
-          </div>
-        </div>
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_12rem_12rem]">
-            <label className="sr-only" htmlFor="dashboard-user-search">Search users and profile details</label>
-            <input
-              className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none placeholder:text-[#716954] focus:border-[#d9af57]/45"
-              id="dashboard-user-search"
-              onChange={(event) => setUserQuery(event.target.value)}
-              placeholder="Search name, email, skills, location..."
-              type="search"
-              value={userQuery}
-            />
-            <label className="sr-only" htmlFor="dashboard-user-role">Filter users by role</label>
-            <select
-              className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none focus:border-[#d9af57]/45"
-              id="dashboard-user-role"
-              onChange={(event) => setUserRoleFilter(event.target.value)}
-              value={userRoleFilter}
-            >
-              <option value="all">All roles</option>
-              <option value="artist">Artists</option>
-              <option value="admin">Administrators</option>
-              <option value="user">Other users</option>
-            </select>
-            <label className="sr-only" htmlFor="dashboard-user-sort">Sort users</label>
-            <select
-              className="min-h-10 rounded-xl border border-white/[0.08] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none focus:border-[#d9af57]/45"
-              id="dashboard-user-sort"
-              onChange={(event) => setUserSortOrder(event.target.value)}
-              value={userSortOrder}
-            >
-              <option value="recent">Recently joined</option>
-              <option value="name">Name A–Z</option>
-            </select>
-        </div>
-        {usersError && (
-          <p className="mb-3 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-xs text-red-200" role="alert">
-            {usersError}
-          </p>
-        )}
-        {users.length === 0 && usersLoading ? (
-          <p className="rounded-2xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#827864]" role="status">
-            Loading users...
-          </p>
-        ) : users.length === 0 ? (
-          <p className="rounded-2xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#827864]" role="status">
-            {usersError ? "Could not load users." : "No verified users yet."}
-          </p>
-        ) : filteredUsers.length === 0 ? (
-          <p className="rounded-2xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#827864]">
-            No users match the current search and filter.
-          </p>
-        ) : (
-          <div className="divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.07] bg-[#10100f]">
-            {filteredUsers.map((user) => (
-              <article className="min-w-0 px-4 py-3 sm:px-5" key={user.email}>
-                <button
-                  aria-expanded={expandedUserEmail === user.email}
-                  className="flex w-full min-w-0 items-center gap-3 text-left"
-                  onClick={() => setExpandedUserEmail((current) => current === user.email ? "" : user.email)}
-                  type="button"
-                >
-                  {user.photoFileId ? (
-                    <Image
-                      alt=""
-                      className="h-10 w-10 shrink-0 rounded-full border border-[#d9af57]/20 object-cover"
-                      height={40}
-                      src={`/api/admin/artists/photo?email=${encodeURIComponent(user.email)}`}
-                      unoptimized
-                      width={40}
-                    />
-                  ) : (
-                    <span
-                      aria-hidden="true"
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#d9af57]/20 bg-[#d9af57]/[0.07] font-[var(--font-display)] text-lg text-[#edcf81]"
-                    >
-                      {user.name.trim().charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-[#f0e6ce]">{user.name}</span>
-                    <span className="block truncate text-xs text-[#8c826d]">{user.email}</span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block text-[10px] capitalize text-[#d2b46a]">{user.role}</span>
-                    {user.createdAt && (
-                      <span className="mt-1 block text-[10px] text-[#746d5b]">
-                        Joined {formatDate(user.createdAt)}
-                      </span>
-                    )}
-                  </span>
-                  <span aria-hidden="true" className="pl-1 text-[#827864]">{expandedUserEmail === user.email ? "−" : "+"}</span>
-                </button>
-                {expandedUserEmail === user.email && (
-                  <div className="ml-13 mt-3 grid gap-3 border-t border-white/[0.06] pt-3 sm:grid-cols-2">
-                    <dl className="space-y-2 text-xs text-[#cbbd9f]">
-                      <div><dt className="inline text-[#827864]">Phone: </dt><dd className="inline">{user.phone || "Not provided"}</dd></div>
-                      <div><dt className="inline text-[#827864]">Location: </dt><dd className="inline">{[user.address, user.city, user.state, user.pinCode].filter(Boolean).join(", ") || "Not provided"}</dd></div>
-                      <div><dt className="inline text-[#827864]">Skills: </dt><dd className="inline">{user.skills.length ? user.skills.join(", ") : "Not provided"}</dd></div>
-                    </dl>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-[#827864]">About</p>
-                      <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[#cbbd9f]">{user.bio || "Not provided"}</p>
-                      <Link
-                        className="mt-2 inline-block text-xs text-[#d2b46a] underline underline-offset-4 hover:text-[#fff5d9]"
-                        href="/dashboard/artists"
-                      >
-                        View artist profiles and event history
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-        )}
-        {(usersHasMore || (usersError && users.length === 0)) && (
-          <button
-            className="mt-3 min-h-10 w-full rounded-xl border border-white/[0.08] bg-[#10100f] px-4 text-xs font-medium text-[#d2b46a] transition hover:border-[#d9af57]/35 hover:text-[#fff5d9] disabled:opacity-60"
-            disabled={usersLoading}
-            onClick={() => void loadMoreUsers()}
-            type="button"
-          >
-            {usersLoading ? "Loading users..." : users.length === 0 ? "Retry loading users" : "Load more users"}
-          </button>
-        )}
-      </section>
+      <Link
+        className="mt-3 flex min-h-12 items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-[#10100f] px-4 py-2 transition hover:border-[#d9af57]/35"
+        href="/dashboard/users"
+      >
+        <span>
+          <span className="block text-[9px] font-semibold uppercase tracking-[0.18em] text-[#928873]">Account directory</span>
+          <span className="mt-1 block text-sm font-medium text-[#f0e6ce]">Manage {overview?.userCount ?? 0} verified accounts</span>
+        </span>
+        <span aria-hidden="true" className="text-lg text-[#d2b46a]">→</span>
+      </Link>
+
     </section>
   );
 }

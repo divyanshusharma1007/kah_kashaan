@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ArtistSkillSelector } from "@/components/auth/artist-skill-selector";
 import type { ArtistSkill } from "@/services/artist-skills";
 import type { EventStatus, ManagedEvent } from "@/services/events";
+import type { ManagedSponsor } from "@/services/sponsors";
 
 type EventForm = {
   title: string;
@@ -13,11 +14,13 @@ type EventForm = {
   type: string;
   startsAt: string;
   location: string;
+  city: string;
   price: string;
   capacity: string;
   organizer: string;
   status: EventStatus;
   skillIds: string[];
+  sponsorIds: string[];
 };
 
 const emptyForm: EventForm = {
@@ -26,11 +29,13 @@ const emptyForm: EventForm = {
   type: "",
   startsAt: "",
   location: "",
+  city: "",
   price: "0",
   capacity: "",
   organizer: "",
   status: "published",
   skillIds: [],
+  sponsorIds: [],
 };
 
 const inputClass =
@@ -46,12 +51,15 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     typeof event.type === "string" &&
     typeof event.startsAt === "string" &&
     typeof event.location === "string" &&
+    typeof event.city === "string" &&
     typeof event.price === "number" &&
     (event.capacity === null || typeof event.capacity === "number") &&
     typeof event.organizer === "string" &&
     (event.status === "published" || event.status === "draft") &&
     Array.isArray(event.skillIds) &&
     event.skillIds.every((id) => typeof id === "string") &&
+    Array.isArray(event.sponsorIds) &&
+    event.sponsorIds.every((id) => typeof id === "string") &&
     typeof event.createdAt === "string" &&
     typeof event.updatedAt === "string";
 }
@@ -89,13 +97,32 @@ function responseError(result: unknown, fallback: string): string {
     : fallback;
 }
 
+function isManagedSponsor(value: unknown): value is ManagedSponsor {
+  if (!value || typeof value !== "object") return false;
+  const sponsor = value as Partial<ManagedSponsor>;
+  return typeof sponsor.id === "string" &&
+    typeof sponsor.name === "string" &&
+    typeof sponsor.category === "string" &&
+    typeof sponsor.summary === "string" &&
+    typeof sponsor.details === "string" &&
+    typeof sponsor.website === "string" &&
+    typeof sponsor.logoUrl === "string" &&
+    typeof sponsor.isWebsiteSponsor === "boolean" &&
+    typeof sponsor.slug === "string" &&
+    typeof sponsor.createdAt === "string" &&
+    typeof sponsor.updatedAt === "string";
+}
+
 export function AdminEventEditor({ eventId }: { eventId?: string }) {
   const router = useRouter();
   const [form, setForm] = useState<EventForm>(emptyForm);
   const [skills, setSkills] = useState<ArtistSkill[]>([]);
+  const [sponsors, setSponsors] = useState<ManagedSponsor[]>([]);
   const [loading, setLoading] = useState(Boolean(eventId));
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState("");
+  const [sponsorsLoading, setSponsorsLoading] = useState(true);
+  const [sponsorsError, setSponsorsError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -136,6 +163,30 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    fetch("/api/admin/sponsors", { cache: "no-store" })
+      .then(async (response) => {
+        const result = await parseResponse(response);
+        if (!response.ok) throw new Error(responseError(result, "Could not load event sponsors."));
+        if (!result || typeof result !== "object" || !("sponsors" in result) ||
+            !Array.isArray(result.sponsors) || !result.sponsors.every(isManagedSponsor)) {
+          throw new Error("The event sponsors service returned an invalid response.");
+        }
+        if (active) setSponsors(result.sponsors);
+      })
+      .catch((cause: unknown) => {
+        console.error("Could not load event sponsors.", cause);
+        if (active) setSponsorsError(cause instanceof Error ? cause.message : "Could not load event sponsors.");
+      })
+      .finally(() => {
+        if (active) setSponsorsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!eventId) return;
 
     let active = true;
@@ -154,11 +205,13 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             type: event.type,
             startsAt: toLocalDateTime(event.startsAt),
             location: event.location,
+            city: event.city,
             price: String(event.price),
             capacity: event.capacity === null ? "" : String(event.capacity),
             organizer: event.organizer,
             status: event.status,
             skillIds: event.skillIds,
+            sponsorIds: event.sponsorIds,
           });
         }
       })
@@ -262,6 +315,10 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
               Location
               <input className={inputClass} maxLength={240} onChange={(event) => updateField("location", event.target.value)} required value={form.location} />
             </label>
+            <label className={`${labelClass} sm:col-span-2`}>
+              City <span className="font-normal text-[#827864]">(optional)</span>
+              <input className={inputClass} maxLength={100} onChange={(event) => updateField("city", event.target.value)} placeholder="City where the event takes place" value={form.city} />
+            </label>
             <label className={labelClass}>
               Ticket price (INR)
               <input className={inputClass} max={1000000} min={0} onChange={(event) => updateField("price", event.target.value)} required step="0.01" type="number" value={form.price} />
@@ -278,6 +335,54 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
               Description
               <textarea className={`${inputClass} min-h-36 resize-y py-3`} maxLength={5000} onChange={(event) => updateField("description", event.target.value)} required value={form.description} />
             </label>
+            <fieldset className="sm:col-span-2">
+              <legend className="mb-2 text-xs font-medium text-[#cbbd9f]">Event sponsors</legend>
+              <p className="mb-3 text-xs leading-5 text-[#827864]">
+                Choose sponsors managed in the sponsor directory. Public profiles are shown on the event page.
+              </p>
+              {sponsorsLoading ? (
+                <p className="rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-4 text-sm text-[#a99b7e]" role="status">
+                  Loading sponsors...
+                </p>
+              ) : sponsorsError ? (
+                <p className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-xs text-red-200" role="alert">
+                  {sponsorsError}
+                </p>
+              ) : sponsors.length === 0 ? (
+                <p className="rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-4 text-xs text-[#827864]">
+                  No sponsors yet. <Link className="text-[#edcf81] underline underline-offset-4" href="/dashboard/sponsors">Add sponsors</Link> to make them available here.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {sponsors.map((sponsor) => (
+                    <label
+                      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 text-xs transition ${
+                        form.sponsorIds.includes(sponsor.id)
+                          ? "border-[#d9af57]/40 bg-[#d9af57]/[0.07] text-[#f3d98c]"
+                          : "border-white/[0.08] text-[#cbbd9f]"
+                      }`}
+                      key={sponsor.id}
+                    >
+                      <input
+                        checked={form.sponsorIds.includes(sponsor.id)}
+                        className="h-4 w-4 accent-[#d9af57]"
+                        onChange={(event) => updateField(
+                          "sponsorIds",
+                          event.target.checked
+                            ? [...form.sponsorIds, sponsor.id]
+                            : form.sponsorIds.filter((id) => id !== sponsor.id),
+                        )}
+                        type="checkbox"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{sponsor.name}</span>
+                        <span className="mt-0.5 block truncate text-[10px] text-[#827864]">{sponsor.category || "Sponsor"}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </fieldset>
             <fieldset className="sm:col-span-2">
               <legend className={labelClass}>Visibility</legend>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
@@ -316,8 +421,8 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             <Link className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/[0.09] px-4 text-xs text-[#b9ab8c] transition hover:border-white/20" href="/dashboard/events">
               Cancel
             </Link>
-            <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:cursor-wait disabled:opacity-60" disabled={saving || skillsLoading || Boolean(skillsError)} type="submit">
-              {skillsLoading ? "Loading skills..." : saving ? "Saving..." : eventId ? "Save changes" : "Create event"}
+            <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:cursor-wait disabled:opacity-60" disabled={saving || skillsLoading || sponsorsLoading || Boolean(skillsError) || Boolean(sponsorsError)} type="submit">
+              {skillsLoading || sponsorsLoading ? "Loading event options..." : saving ? "Saving..." : eventId ? "Save changes" : "Create event"}
             </button>
           </div>
         </form>

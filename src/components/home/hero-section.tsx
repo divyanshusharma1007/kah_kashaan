@@ -1,7 +1,9 @@
 import type { EventItem, Stat } from "@/data/home-page-data";
+import type { HeroContent } from "@/data/hero-content";
 import Link from "next/link";
 
 type HeroSectionProps = {
+  content: HeroContent;
   stats: Stat[];
   featuredEvent: {
     title: string;
@@ -11,7 +13,7 @@ type HeroSectionProps = {
   upcomingEvents: EventItem[];
 };
 
-export function HeroSection({ stats, featuredEvent, upcomingEvents }: HeroSectionProps) {
+export function HeroSection({ content, stats, featuredEvent, upcomingEvents }: HeroSectionProps) {
   return (
     <section id="home" className="grid items-center gap-10 py-8 md:grid-cols-[1.15fr_0.85fr] md:py-14">
       <div>
@@ -20,13 +22,11 @@ export function HeroSection({ stats, featuredEvent, upcomingEvents }: HeroSectio
         </span>
 
         <h1 className="mt-6 max-w-xl break-words font-[var(--font-display)] text-4xl leading-[0.98] text-[#fff5d9] sm:mt-7 sm:text-5xl md:text-7xl">
-          Where words, music, and meaning gather in one luminous space.
+          {content.headline}
         </h1>
 
         <p className="mt-5 max-w-xl text-sm leading-7 text-[#d8c8a2] sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
-          Kah-Kashaan is a cultural event platform that brings together mentorship,
-          workshops, live literary performances, and music-driven gatherings to nurture
-          voices and build a thriving artistic community.
+          {content.description}
         </p>
 
         <div className="mt-8 flex flex-col gap-4 sm:flex-row">

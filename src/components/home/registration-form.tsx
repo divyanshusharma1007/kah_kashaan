@@ -72,8 +72,11 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
   const [loadingSkills, setLoadingSkills] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [registered, setRegistered] = useState(false);
-  const [pendingPayment, setPendingPayment] = useState<RazorpayCheckoutResponse | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<{
+    payment: RazorpayCheckoutResponse;
+    eventId: string;
+    eventName: string;
+  } | null>(null);
   const [eventName, setEventName] = useState(selectedEvent && eventNames.includes(selectedEvent) ? selectedEvent : "");
   const [paymentOption, setPaymentOption] = useState<"online" | "at-event">("online");
   const signedInArtist = user?.role === "artist" && user.provider ? user : null;
@@ -93,7 +96,11 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
     );
   const isEligibleForSelectedEvent = hasMatchingProfileSkill && hasSelectedEventSkill;
 
-  async function confirmOnlineRegistration(payment: RazorpayCheckoutResponse) {
+  async function confirmOnlineRegistration(
+    payment: RazorpayCheckoutResponse,
+    eventId: string,
+    eventName: string,
+  ) {
     const response = await fetch("/api/registrations/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -107,9 +114,10 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
         : "Payment was received, but registration could not be confirmed.";
       throw new Error(message);
     }
-    setRegistered(true);
     setPendingPayment(null);
-    router.refresh();
+    router.replace(
+      `/dashboard/artist/registration-success?event=${encodeURIComponent(eventId)}&name=${encodeURIComponent(eventName)}`,
+    );
   }
 
   async function retryOnlineRegistration() {
@@ -117,7 +125,11 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
     setSubmitting(true);
     setError("");
     try {
-      await confirmOnlineRegistration(pendingPayment);
+      await confirmOnlineRegistration(
+        pendingPayment.payment,
+        pendingPayment.eventId,
+        pendingPayment.eventName,
+      );
     } catch (cause) {
       console.error("Could not retry registration confirmation after Razorpay payment.", cause);
       setError(cause instanceof Error ? cause.message : "Could not confirm your payment.");
@@ -256,10 +268,10 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
               : {}),
           },
           handler: (payment) => {
-            void confirmOnlineRegistration(payment)
+            void confirmOnlineRegistration(payment, eventId, selectedName)
               .catch((cause: unknown) => {
                 console.error("Could not complete registration after Razorpay payment.", cause);
-                setPendingPayment(payment);
+                setPendingPayment({ payment, eventId, eventName: selectedName });
                 setError(cause instanceof Error ? cause.message : "Could not confirm your payment.");
               })
               .finally(() => setSubmitting(false));
@@ -286,8 +298,9 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
           : "Could not complete your registration.";
         throw new Error(message);
       }
-      setRegistered(true);
-      router.refresh();
+      router.replace(
+        `/dashboard/artist/registration-success?event=${encodeURIComponent(eventId)}&name=${encodeURIComponent(selectedName)}`,
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not complete your registration.");
     } finally {
@@ -318,19 +331,6 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
             Create artist account
           </Link>
         </div>
-      </div>
-    );
-  }
-
-  if (registered) {
-    return (
-      <div className="rounded-2xl border border-emerald-400/25 bg-emerald-950/20 p-5 sm:p-6" role="status">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200">Registration confirmed</p>
-        <h3 className="mt-2 font-[var(--font-display)] text-2xl text-[#fff5d9]">{eventNames.length === 1 ? eventNames[0] : eventName}</h3>
-        <p className="mt-2 text-sm leading-6 text-[#c6bda5]">This event is now part of your artist dashboard.</p>
-        <Link className="mt-4 inline-flex min-h-10 items-center text-xs font-semibold uppercase tracking-[0.14em] text-[#f0ddab] underline underline-offset-4" href="/dashboard/artist">
-          View artist dashboard
-        </Link>
       </div>
     );
   }

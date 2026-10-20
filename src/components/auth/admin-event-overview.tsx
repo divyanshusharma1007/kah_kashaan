@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ArtistSkill } from "@/services/artist-skills";
 import type { ManagedEvent, ManagedEventRegistration } from "@/services/events";
+import type { ManagedSponsor } from "@/services/sponsors";
+import { getEventLifecycleStatus } from "@/lib/event-lifecycle";
 
 type EventOverview = {
   event: ManagedEvent;
   skills: ArtistSkill[];
+  sponsors: ManagedSponsor[];
   registrations: ManagedEventRegistration[];
   totalIncome: number;
 };
@@ -22,6 +25,8 @@ function isEventOverview(value: unknown): value is EventOverview {
       typeof overview.event.title === "string" &&
       Array.isArray(overview.skills) &&
       overview.skills.every((skill) => skill && typeof skill.id === "string" && typeof skill.name === "string") &&
+      Array.isArray(overview.sponsors) &&
+      overview.sponsors.every((sponsor) => sponsor && typeof sponsor.id === "string" && typeof sponsor.name === "string") &&
       Array.isArray(overview.registrations) &&
       overview.registrations.every((registration) =>
         registration &&
@@ -61,6 +66,16 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
   const [notice, setNotice] = useState("");
   const [registrantQuery, setRegistrantQuery] = useState("");
   const [performanceFilter, setPerformanceFilter] = useState("all");
+  const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 60_000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -152,7 +167,11 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
           <div className="mt-5 rounded-2xl border border-[#d9af57]/20 bg-gradient-to-br from-[#d9af57]/[0.1] via-[#10100f] to-[#10100f] p-5 sm:p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">Event overview · {overview.event.status}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">
+                  Event overview · {getEventLifecycleStatus(overview.event.status, overview.event.startsAt, new Date(currentTime)) === "completed"
+                    ? "Done"
+                    : overview.event.status}
+                </p>
                 <h1 className="mt-2 font-[var(--font-display)] text-3xl text-[#fff5d9] sm:text-4xl">{overview.event.title}</h1>
                 <p className="mt-2 text-sm text-[#a99b7e]">
                   {new Intl.DateTimeFormat("en-IN", {
@@ -160,6 +179,7 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
                     timeStyle: "short",
                     timeZone: "Asia/Kolkata",
                   }).format(new Date(overview.event.startsAt))} · {overview.event.location}
+                  {overview.event.city ? `, ${overview.event.city}` : ""}
                 </p>
               </div>
               <Link
@@ -190,6 +210,18 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
                   {overview.skills.map((skill) => (
                     <span className="rounded-full border border-[#d9af57]/20 px-3 py-1 text-xs text-[#f0ddab]" key={skill.id}>
                       {skill.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {overview.sponsors.length > 0 && (
+              <div className="mt-5">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Event sponsors</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {overview.sponsors.map((sponsor) => (
+                    <span className="rounded-full border border-[#d9af57]/20 px-3 py-1 text-xs text-[#f0ddab]" key={sponsor.id}>
+                      {sponsor.name}
                     </span>
                   ))}
                 </div>

@@ -28,6 +28,7 @@ export async function getPublicEventData(
       title: event.title,
       type: event.type,
       venue: event.location,
+      city: event.city,
       startsAt: event.startsAt,
       description: event.description,
       price: event.price,
