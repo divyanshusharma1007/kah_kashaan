@@ -7,12 +7,60 @@ import { ArtistSkillSelector } from "@/components/auth/artist-skill-selector";
 import { useAuth } from "@/components/auth/auth-context";
 import type { ArtistSkill } from "@/services/artist-skills";
 
+type RazorpayCheckoutResponse = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayCheckoutOptions = {
+  key: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  prefill: { name: string; email: string; contact?: string };
+  readonly: { email: boolean; contact?: boolean };
+  handler: (response: RazorpayCheckoutResponse) => void;
+  modal: { ondismiss: () => void };
+};
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => { open: () => void };
+  }
+}
+
 type RegistrationFormProps = {
   eventNames: string[];
-  eventChoices?: { id: string; title: string; skillIds: string[] }[];
+  eventChoices?: { id: string; title: string; skillIds: string[]; price: number }[];
   selectedEvent?: string;
   selectedEventId?: string;
 };
+
+function loadRazorpayCheckout(): Promise<void> {
+  if (window.Razorpay) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
+    );
+    const script = existingScript ?? document.createElement("script");
+    const loaded = () => {
+      if (window.Razorpay) resolve();
+      else reject(new Error("Razorpay checkout did not load correctly."));
+    };
+    const failed = () => reject(new Error("Could not load Razorpay checkout. Check your connection and try again."));
+    script.addEventListener("load", loaded, { once: true });
+    script.addEventListener("error", failed, { once: true });
+    if (!existingScript) {
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  });
+}
 
 export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent, selectedEventId }: RegistrationFormProps) {
   const router = useRouter();
@@ -25,10 +73,13 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<RazorpayCheckoutResponse | null>(null);
   const [eventName, setEventName] = useState(selectedEvent && eventNames.includes(selectedEvent) ? selectedEvent : "");
+  const [paymentOption, setPaymentOption] = useState<"online" | "at-event">("online");
   const signedInArtist = user?.role === "artist" && user.provider ? user : null;
   const activeEventName = eventNames.length === 1 ? eventNames[0] : eventName;
   const selectedChoice = eventChoices.find((event) => event.title === activeEventName);
+  const selectedEventPrice = selectedChoice?.price ?? 0;
   const visibleSkills = selectedChoice?.skillIds.length
     ? skills.filter((skill) => selectedChoice.skillIds.includes(skill.id))
     : skills;
@@ -41,6 +92,39 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
       profileSkillIds.includes(skillId) && selectedSkillIds.includes(skillId),
     );
   const isEligibleForSelectedEvent = hasMatchingProfileSkill && hasSelectedEventSkill;
+
+  async function confirmOnlineRegistration(payment: RazorpayCheckoutResponse) {
+    const response = await fetch("/api/registrations/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payment),
+    });
+    const result: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = result && typeof result === "object" &&
+        "error" in result && typeof result.error === "string"
+        ? result.error
+        : "Payment was received, but registration could not be confirmed.";
+      throw new Error(message);
+    }
+    setRegistered(true);
+    setPendingPayment(null);
+    router.refresh();
+  }
+
+  async function retryOnlineRegistration() {
+    if (!pendingPayment) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await confirmOnlineRegistration(pendingPayment);
+    } catch (cause) {
+      console.error("Could not retry registration confirmation after Razorpay payment.", cause);
+      setError(cause instanceof Error ? cause.message : "Could not confirm your payment.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     if (!signedInArtist) return;
@@ -106,27 +190,96 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
     event.preventDefault();
     setError("");
     setSubmitting(true);
+    let checkoutOpened = false;
     try {
       const selectedName = eventNames.length === 1 ? eventNames[0] : eventName;
       if (!selectedName) throw new Error("Choose an event before registering.");
       const eventId = eventChoices.find((event) => event.title === selectedName)?.id ?? selectedEventId;
+      if (!eventId) throw new Error("Choose a valid event before registering.");
+      const registrationDetails = {
+        name: signedInArtist?.name,
+        email: signedInArtist?.email,
+        eventName: selectedName,
+        eventId,
+        skillIds: selectedSkillIds.filter((id) => visibleSkills.some((skill) => skill.id === id)),
+      };
+
+      if (selectedEventPrice > 0 && paymentOption === "online") {
+        await loadRazorpayCheckout();
+        const orderResponse = await fetch("/api/registrations/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(registrationDetails),
+        });
+        const orderResult: unknown = await orderResponse.json().catch(() => null);
+        if (!orderResponse.ok) {
+          const message = orderResult && typeof orderResult === "object" &&
+            "error" in orderResult && typeof orderResult.error === "string"
+            ? orderResult.error
+            : "Could not start the online payment.";
+          throw new Error(message);
+        }
+        if (
+          !orderResult || typeof orderResult !== "object" ||
+          !("keyId" in orderResult) || typeof orderResult.keyId !== "string" ||
+          !("order" in orderResult) || !orderResult.order || typeof orderResult.order !== "object" ||
+          !("id" in orderResult.order) || typeof orderResult.order.id !== "string" ||
+          !("amount" in orderResult.order) || typeof orderResult.order.amount !== "number" ||
+          !("currency" in orderResult.order) || typeof orderResult.order.currency !== "string" ||
+          !("eventName" in orderResult) || typeof orderResult.eventName !== "string" ||
+          !("artistName" in orderResult) || typeof orderResult.artistName !== "string" ||
+          !("email" in orderResult) || typeof orderResult.email !== "string" ||
+          ("contact" in orderResult && typeof orderResult.contact !== "string")
+        ) {
+          throw new Error("The payment service returned an invalid order.");
+        }
+        if (!window.Razorpay) throw new Error("Razorpay checkout did not load correctly.");
+
+        const checkout = new window.Razorpay({
+          key: orderResult.keyId,
+          order_id: orderResult.order.id,
+          amount: orderResult.order.amount,
+          currency: orderResult.order.currency,
+          name: "Kah-Kashaan",
+          description: `Registration: ${orderResult.eventName}`,
+          prefill: {
+            name: orderResult.artistName,
+            email: orderResult.email,
+            ...("contact" in orderResult && typeof orderResult.contact === "string"
+              ? { contact: orderResult.contact }
+              : {}),
+          },
+          readonly: {
+            email: true,
+            ...("contact" in orderResult && typeof orderResult.contact === "string"
+              ? { contact: true }
+              : {}),
+          },
+          handler: (payment) => {
+            void confirmOnlineRegistration(payment)
+              .catch((cause: unknown) => {
+                console.error("Could not complete registration after Razorpay payment.", cause);
+                setPendingPayment(payment);
+                setError(cause instanceof Error ? cause.message : "Could not confirm your payment.");
+              })
+              .finally(() => setSubmitting(false));
+          },
+          modal: { ondismiss: () => setSubmitting(false) },
+        });
+        checkout.open();
+        checkoutOpened = true;
+        return;
+      }
+
       const response = await fetch("/api/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: signedInArtist?.name,
-          email: signedInArtist?.email,
-          eventName: selectedName,
-          eventId,
-          skillIds: selectedSkillIds.filter((id) => visibleSkills.some((skill) => skill.id === id)),
+          ...registrationDetails,
+          paymentMethod: selectedEventPrice === 0 ? "free" : "at-event",
         }),
       });
-      let result: unknown;
-      try {
-        result = await response.json();
-      } catch {
-        throw new Error("The registration service returned an invalid response.");
-      }
+      const result: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         const message = result && typeof result === "object" && "error" in result && typeof result.error === "string"
           ? result.error
@@ -138,7 +291,7 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not complete your registration.");
     } finally {
-      setSubmitting(false);
+      if (!checkoutOpened) setSubmitting(false);
     }
   }
 
@@ -230,6 +383,51 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
           />
         )}
       </fieldset>
+      {selectedEventPrice > 0 ? (
+        <fieldset className="mt-6" disabled={submitting}>
+          <legend className="text-xs font-medium uppercase tracking-[0.16em] text-[#e7d7aa]">
+            Payment option · {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(selectedEventPrice)}
+          </legend>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className={`cursor-pointer rounded-xl border p-4 transition ${
+              paymentOption === "online" ? "border-[#d9af57] bg-[#d9af57]/[0.08]" : "border-white/[0.08] bg-[#0b0b0a]"
+            }`}>
+              <input
+                checked={paymentOption === "online"}
+                className="accent-[#d9af57]"
+                name="registration-payment"
+                onChange={() => setPaymentOption("online")}
+                type="radio"
+                value="online"
+              />
+              <span className="ml-2 text-sm font-medium text-[#f0e6ce]">Pay online now</span>
+              <span className="mt-2 block pl-6 text-xs leading-5 text-[#a99b7e]">
+                Secure Razorpay checkout with credit and debit cards.
+              </span>
+            </label>
+            <label className={`cursor-pointer rounded-xl border p-4 transition ${
+              paymentOption === "at-event" ? "border-[#d9af57] bg-[#d9af57]/[0.08]" : "border-white/[0.08] bg-[#0b0b0a]"
+            }`}>
+              <input
+                checked={paymentOption === "at-event"}
+                className="accent-[#d9af57]"
+                name="registration-payment"
+                onChange={() => setPaymentOption("at-event")}
+                type="radio"
+                value="at-event"
+              />
+              <span className="ml-2 text-sm font-medium text-[#f0e6ce]">Pay at the event</span>
+              <span className="mt-2 block pl-6 text-xs leading-5 text-[#a99b7e]">
+                Reserve your place and pay the event team on arrival.
+              </span>
+            </label>
+          </div>
+        </fieldset>
+      ) : (
+        <p className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-950/15 p-4 text-sm text-emerald-100">
+          This event is free. No payment is required.
+        </p>
+      )}
       {!loadingSkills && !error && selectedChoice?.skillIds.length && !isEligibleForSelectedEvent && (
         <p className="mt-4 rounded-xl border border-amber-400/25 bg-amber-950/20 p-4 text-sm leading-6 text-amber-100" role="status">
           {!hasMatchingProfileSkill ? (
@@ -246,11 +444,21 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
         </p>
       )}
       {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">{error}</p>}
+      {pendingPayment && (
+        <button
+          className="mt-3 min-h-11 w-full rounded-xl border border-[#d9af57]/35 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#f0ddab] transition hover:border-[#d9af57] disabled:opacity-60 sm:w-auto"
+          disabled={submitting}
+          onClick={() => void retryOnlineRegistration()}
+          type="button"
+        >
+          {submitting ? "Confirming payment..." : "Retry registration confirmation"}
+        </button>
+      )}
       <p className="mt-5 text-xs leading-5 text-[#a99b7e]">
         A phone number is optional. You can add your contact details and performance skills to your profile at any time.
       </p>
       <button className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto" disabled={submitting || loadingSkills || !isEligibleForSelectedEvent || (eventNames.length > 1 && !eventName)} type="submit">
-        {submitting ? "Registering..." : "Register for event"}
+        {submitting ? "Processing..." : selectedEventPrice > 0 && paymentOption === "online" ? "Pay & register" : "Register for event"}
       </button>
     </form>
   );

@@ -31,6 +31,8 @@ function isEventOverview(value: unknown): value is EventOverview {
         typeof registration.eventPrice === "number" &&
         typeof registration.createdAt === "string" &&
         typeof registration.willPerform === "boolean" &&
+        typeof registration.paymentMethod === "string" &&
+        typeof registration.paymentStatus === "string" &&
         Array.isArray(registration.skillNames),
       ) &&
       typeof overview.totalIncome === "number",
@@ -245,6 +247,12 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
                       <p className="mt-2 text-[10px] text-[#827864]">
                         Registered {new Date(registration.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                         {" · "}{formatPrice(registration.eventPrice)}
+                        {" · "}
+                        {registration.paymentStatus === "paid"
+                          ? "Paid online"
+                          : registration.paymentStatus === "due"
+                            ? "Pay at event"
+                            : "No payment required"}
                       </p>
                     </div>
                     <button

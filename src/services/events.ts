@@ -42,6 +42,10 @@ type EventRegistrationDocument = {
   createdAt: Date;
   willPerform?: boolean;
   skillNames?: string[];
+  paymentMethod?: "razorpay" | "at-event" | "free";
+  paymentStatus?: "paid" | "due" | "not-required";
+  paymentId?: string;
+  razorpayOrderId?: string;
 };
 
 export type ManagedEventRegistration = {
@@ -53,6 +57,8 @@ export type ManagedEventRegistration = {
   eventPrice: number;
   willPerform: boolean;
   skillNames: string[];
+  paymentMethod: "razorpay" | "at-event" | "free" | "legacy";
+  paymentStatus: "paid" | "due" | "not-required";
 };
 
 function getEventCollection(client: NonNullable<Awaited<ReturnType<typeof getMongoClient>>>) {
@@ -293,22 +299,33 @@ export async function getAdminEventRegistrations(
     .sort({ createdAt: -1 })
     .toArray();
 
-  const registrations = records.map((registration) => ({
-    name: registration.name,
-    email: (registration.emailNormalized || registration.email).trim().toLowerCase(),
-    phone: registration.phone,
-    eventName: registration.eventName,
-    createdAt: registration.createdAt.toISOString(),
-    eventPrice: typeof registration.eventPrice === "number" && Number.isFinite(registration.eventPrice)
-      ? registration.eventPrice
-      : event.price,
-    willPerform: registration.willPerform !== false,
-    skillNames: registration.skillNames ?? [],
-  }));
+  const registrations = records.map((registration): ManagedEventRegistration => {
+    const paymentMethod: ManagedEventRegistration["paymentMethod"] = registration.paymentMethod ?? "legacy";
+    const paymentStatus: ManagedEventRegistration["paymentStatus"] = registration.paymentStatus ??
+      (registration.paymentMethod === "at-event" ? "due" : "paid");
+    return {
+      name: registration.name,
+      email: (registration.emailNormalized || registration.email).trim().toLowerCase(),
+      phone: registration.phone,
+      eventName: registration.eventName,
+      createdAt: registration.createdAt.toISOString(),
+      eventPrice: typeof registration.eventPrice === "number" && Number.isFinite(registration.eventPrice)
+        ? registration.eventPrice
+        : event.price,
+      willPerform: registration.willPerform !== false,
+      skillNames: registration.skillNames ?? [],
+      paymentMethod,
+      paymentStatus,
+    };
+  });
 
   return {
     registrations,
-    totalIncome: registrations.reduce((total, registration) => total + registration.eventPrice, 0),
+    totalIncome: registrations.reduce(
+      (total, registration) =>
+        total + (registration.paymentStatus === "paid" ? registration.eventPrice : 0),
+      0,
+    ),
   };
 }
 

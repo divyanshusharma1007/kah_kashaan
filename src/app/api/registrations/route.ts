@@ -6,6 +6,7 @@ import {
 } from "@/services/artist-directory";
 import { getSignedInArtist } from "@/services/artist-auth";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
+import { getUpcomingPublishedEvent } from "@/services/events";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -27,11 +28,30 @@ export async function POST(request: NextRequest) {
 
   const parsed = parseArtistRegistration(body);
   if (!parsed.success) return jsonResponse({ error: parsed.error }, 400);
+  if (!parsed.data.eventId) {
+    return jsonResponse({ error: "Choose a valid published event." }, 400);
+  }
+  if (parsed.data.paymentMethod !== "at-event" && parsed.data.paymentMethod !== "free") {
+    return jsonResponse({ error: "Choose online payment or pay at the event." }, 400);
+  }
 
   try {
     const profile = await getArtistProfile(user.email);
     if (!profile) {
       return jsonResponse({ error: "Your profile is temporarily unavailable. Please try again." }, 503);
+    }
+    const event = await getUpcomingPublishedEvent(parsed.data.eventId);
+    if (event === null) {
+      return jsonResponse({ error: "Event details are temporarily unavailable." }, 503);
+    }
+    if (!event || event.title !== parsed.data.eventName) {
+      return jsonResponse({ error: "This event is no longer available for registration." }, 409);
+    }
+    if (parsed.data.paymentMethod === "at-event" && event.price === 0) {
+      return jsonResponse({ error: "This event is free; no payment is due at the event." }, 400);
+    }
+    if (parsed.data.paymentMethod === "free" && event.price !== 0) {
+      return jsonResponse({ error: "Choose a payment option for this ticket." }, 400);
     }
 
     const skillIds = parsed.data.skillIds ?? [];
@@ -47,6 +67,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       phone: profile.phone,
       skillNames: skills.map((skill) => skill.name),
+      paymentStatus: parsed.data.paymentMethod === "at-event" ? "due" as const : "not-required" as const,
     };
     const result = await createArtistRegistration(registration, profile.skillIds);
     if (result === "database-unavailable") {

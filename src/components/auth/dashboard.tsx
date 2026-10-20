@@ -523,7 +523,7 @@ export function DashboardHome() {
                   </Link>
                   <div className="mt-5 border-t border-white/[0.07] pt-5">
                     <RegistrationForm
-                      eventChoices={[{ id: event.id, title: event.title, skillIds: event.skillIds }]}
+                      eventChoices={[{ id: event.id, title: event.title, skillIds: event.skillIds, price: event.price }]}
                       eventNames={[event.title]}
                       selectedEvent={event.title}
                       selectedEventId={event.id}

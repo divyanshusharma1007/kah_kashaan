@@ -18,7 +18,16 @@ function isRecentRegistration(value: unknown): value is RecentRegistration {
     typeof registration.phone === "string" &&
     typeof registration.eventName === "string" &&
     (typeof registration.eventPrice === "number" || registration.eventPrice === null) &&
+    (registration.paymentStatus === "paid" ||
+      registration.paymentStatus === "due" ||
+      registration.paymentStatus === "not-required") &&
     typeof registration.createdAt === "string";
+}
+
+function getPaymentStatusLabel(status: RecentRegistration["paymentStatus"]): string {
+  if (status === "due") return "Due at event";
+  if (status === "not-required") return "No payment required";
+  return "Paid";
 }
 
 function isRecentEvent(value: unknown): value is RecentEvent {
@@ -470,6 +479,7 @@ export function AdminOverview() {
                   {selectedRegistration.eventPrice === null
                     ? "Price unavailable"
                     : formatMoney(selectedRegistration.eventPrice)}
+                  {" · "}{getPaymentStatusLabel(selectedRegistration.paymentStatus)}
                 </p>
               </div>
             </div>
@@ -483,6 +493,7 @@ export function AdminOverview() {
                 {selectedRegistration.eventPrice === null
                   ? "Price unavailable"
                   : formatMoney(selectedRegistration.eventPrice)}
+                {" · "}{getPaymentStatusLabel(selectedRegistration.paymentStatus)}
               </p>
             </div>
           )}

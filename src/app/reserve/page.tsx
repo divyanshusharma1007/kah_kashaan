@@ -37,7 +37,12 @@ export default async function ReservePage({
           {eventNames.length > 0 ? (
             <RegistrationForm
               eventChoices={upcomingEvents.flatMap((event) =>
-                event.id ? [{ id: event.id, title: event.title, skillIds: event.skillIds ?? [] }] : [],
+                event.id ? [{
+                  id: event.id,
+                  title: event.title,
+                  skillIds: event.skillIds ?? [],
+                  price: event.price ?? 0,
+                }] : [],
               )}
               eventNames={eventNames}
               selectedEvent={selectedEvent}

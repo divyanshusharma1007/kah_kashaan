@@ -13,9 +13,16 @@ export type ArtistRegistrationInput = {
   eventId?: string;
   skillIds?: string[];
   skillNames?: string[];
+  paymentMethod?: "razorpay" | "at-event" | "free";
+  paymentStatus?: "paid" | "due" | "not-required";
+  paymentId?: string;
+  razorpayOrderId?: string;
+  paidEventPrice?: number;
 };
 
 export type ArtistProfileData = {
+  name: string;
+  email: string;
   phone: string;
   address: string;
   city: string;
@@ -26,7 +33,7 @@ export type ArtistProfileData = {
   photoFileId: string | null;
 };
 
-export type ArtistProfileInput = Omit<ArtistProfileData, "photoFileId">;
+export type ArtistProfileInput = Omit<ArtistProfileData, "photoFileId" | "name" | "email">;
 
 export type ArtistDirectoryEntry = {
   name: string;
@@ -144,6 +151,7 @@ export function parseArtistRegistration(value: unknown):
   const eventName = typeof body.eventName === "string" ? body.eventName.trim() : "";
   const eventId = body.eventId;
   const skillIds = body.skillIds;
+  const paymentMethod = body.paymentMethod;
 
   if (name.length < 2 || name.length > 120) {
     return { success: false, error: "Enter a name between 2 and 120 characters." };
@@ -168,6 +176,14 @@ export function parseArtistRegistration(value: unknown):
   ) {
     return { success: false, error: "Choose valid performance skills." };
   }
+  if (
+    paymentMethod !== undefined &&
+    paymentMethod !== "razorpay" &&
+    paymentMethod !== "at-event" &&
+    paymentMethod !== "free"
+  ) {
+    return { success: false, error: "Choose a valid payment option." };
+  }
 
   return {
     success: true,
@@ -180,6 +196,7 @@ export function parseArtistRegistration(value: unknown):
       ...(Array.isArray(skillIds)
         ? { skillIds: [...new Set(skillIds.map((skillId) => (skillId as string).toLowerCase()))] }
         : {}),
+      ...(paymentMethod ? { paymentMethod } : {}),
     },
   };
 }
@@ -194,9 +211,26 @@ export async function getArtistProfile(email: string): Promise<ArtistProfileData
     .collection<ArtistAccountDocument>("users")
     .findOne(
       { $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }] },
-      { projection: { phone: 1, address: 1, city: 1, state: 1, pinCode: 1, bio: 1, skillIds: 1, photoFileId: 1 } },
+      {
+        projection: {
+          name: 1,
+          email: 1,
+          emailNormalized: 1,
+          phone: 1,
+          address: 1,
+          city: 1,
+          state: 1,
+          pinCode: 1,
+          bio: 1,
+          skillIds: 1,
+          photoFileId: 1,
+        },
+        collation: { locale: "en", strength: 2 },
+      },
     );
   return {
+    name: account?.name?.trim() || "",
+    email: (account?.emailNormalized || account?.email || "").trim().toLowerCase(),
     phone: account?.phone?.trim() || "",
     address: account?.address?.trim() || "",
     city: account?.city?.trim() || "",
@@ -571,7 +605,9 @@ export async function createArtistRegistration(
   await registrations.insertOne({
     ...input,
     emailNormalized: input.email,
-    eventPrice: event.price,
+    eventPrice: Number.isFinite(input.paidEventPrice) && (input.paidEventPrice ?? -1) >= 0
+      ? input.paidEventPrice
+      : event.price,
     createdAt: new Date(),
   });
 

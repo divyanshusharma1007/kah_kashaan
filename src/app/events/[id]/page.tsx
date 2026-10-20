@@ -68,7 +68,7 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
             Register for {event.title}
           </h2>
           <RegistrationForm
-            eventChoices={[{ id: event.id, title: event.title, skillIds: event.skillIds }]}
+            eventChoices={[{ id: event.id, title: event.title, skillIds: event.skillIds, price: event.price }]}
             eventNames={[event.title]}
             selectedEvent={event.title}
             selectedEventId={event.id}

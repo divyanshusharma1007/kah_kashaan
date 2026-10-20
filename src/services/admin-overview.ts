@@ -10,6 +10,7 @@ export type RecentRegistration = {
   phone: string;
   eventName: string;
   eventPrice: number | null;
+  paymentStatus: "paid" | "due" | "not-required";
   createdAt: string;
 };
 
@@ -84,6 +85,8 @@ type RegistrationDocument = {
   phone: string;
   eventName: string;
   eventPrice?: number;
+  paymentMethod?: "razorpay" | "at-event" | "free";
+  paymentStatus?: "paid" | "due" | "not-required";
   createdAt: Date;
 };
 
@@ -142,12 +145,30 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       .toArray(),
     registrations
       .find({ createdAt: { $gte: month, $lte: now } })
-      .project<RegistrationDocument>({ name: 1, email: 1, phone: 1, eventName: 1, eventPrice: 1, createdAt: 1 })
+      .project<RegistrationDocument>({
+        name: 1,
+        email: 1,
+        phone: 1,
+        eventName: 1,
+        eventPrice: 1,
+        paymentMethod: 1,
+        paymentStatus: 1,
+        createdAt: 1,
+      })
       .sort({ createdAt: -1 })
       .toArray(),
     registrations
       .find({})
-      .project<RegistrationDocument>({ name: 1, email: 1, phone: 1, eventName: 1, eventPrice: 1, createdAt: 1 })
+      .project<RegistrationDocument>({
+        name: 1,
+        email: 1,
+        phone: 1,
+        eventName: 1,
+        eventPrice: 1,
+        paymentMethod: 1,
+        paymentStatus: 1,
+        createdAt: 1,
+      })
       .sort({ createdAt: -1 })
       .limit(10)
       .toArray(),
@@ -165,7 +186,13 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     (registration) => registration.createdAt >= today,
   );
   const sumRegistrationValue = (items: RegistrationDocument[]): number =>
-    items.reduce((total, registration) => total + (getRegistrationPrice(registration) ?? 0), 0);
+    items.reduce(
+      (total, registration) =>
+          total + (registration.paymentStatus === "due" || registration.paymentStatus === "not-required"
+            ? 0
+            : getRegistrationPrice(registration) ?? 0),
+      0,
+    );
 
   return {
     userCount,
@@ -191,6 +218,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       phone: registration.phone,
       eventName: registration.eventName,
       eventPrice: getRegistrationPrice(registration),
+      paymentStatus: registration.paymentStatus ?? "paid",
       createdAt: registration.createdAt.toISOString(),
     })),
   };
