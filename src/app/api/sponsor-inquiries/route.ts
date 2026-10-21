@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import { createSponsorInquiry, listSponsorInquiries, parseSponsorInquiry } from "@/services/sponsor-inquiries";
 
 function jsonResponse(body: object, status = 200) {
@@ -7,7 +8,7 @@ function jsonResponse(body: object, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid partnership inquiry request." }, 403);
   }
   let body: unknown;

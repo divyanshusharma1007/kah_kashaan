@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSignedInArtist } from "@/services/artist-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import {
   getArtistProfile,
   updateArtistProfilePhoto,
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getSignedInArtist(request);
   if (user instanceof NextResponse) return user;
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid profile photo upload request." }, 403);
   }
   const missingPhotoStorageConfiguration = getMissingArtistPhotoStorageConfiguration();

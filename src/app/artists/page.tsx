@@ -3,6 +3,7 @@ import { FeaturedArtists } from "@/components/artists/featured-artists";
 import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
 import { getHomepageHeroContent } from "@/services/homepage-content";
+import { defaultHeroContent } from "@/data/hero-content";
 
 export default async function ArtistsPage() {
   await connection();
@@ -12,7 +13,10 @@ export default async function ArtistsPage() {
   ]);
   return (
     <SiteLayout navItems={navItems} logo={logo} content={content ?? undefined}>
-      <FeaturedArtists content={content?.featuredArtists} />
+      <FeaturedArtists
+        content={content?.featuredArtists}
+        copy={(content ?? defaultHeroContent).publicPages.artistsPage}
+      />
     </SiteLayout>
   );
 }

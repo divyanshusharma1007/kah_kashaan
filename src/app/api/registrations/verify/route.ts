@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import {
   createArtistRegistration,
   type ArtistRegistrationInput,
@@ -25,7 +26,7 @@ function jsonResponse(body: object, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid payment verification request." }, 403);
   }
   const user = await getSignedInArtist(request);

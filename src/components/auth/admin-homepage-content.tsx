@@ -7,6 +7,7 @@ import {
   type HeroContent,
   type ProgramContent,
 } from "@/data/hero-content";
+import type { PublicPageCopy } from "@/data/public-page-copy";
 
 const inputClass =
   "mt-1.5 min-h-11 w-full rounded-xl border border-white/[0.09] bg-[#0b0b0a] px-3 text-sm text-[#fff5d9] outline-none placeholder:text-[#716954] focus:border-[#d9af57]/50";
@@ -27,8 +28,117 @@ function isHeroContent(value: unknown): value is HeroContent {
     ) &&
     Boolean(content.about) && Boolean(content.programs) && Boolean(content.community) &&
     Boolean(content.featuredArtists) && Boolean(content.sponsors) && Boolean(content.socialLinks) &&
+    Boolean(content.publicPages) &&
     content.footerVisibility !== undefined &&
     Object.values(content.footerVisibility).every((visible) => typeof visible === "boolean");
+}
+
+function readableLabel(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/^./, (first) => first.toUpperCase());
+}
+
+function replaceAtPath(
+  value: unknown,
+  path: (string | number)[],
+  nextValue: unknown,
+  depth = 0,
+): unknown {
+  if (depth === path.length) return nextValue;
+  const key = path[depth];
+  if (Array.isArray(value) && typeof key === "number") {
+    return value.map((item, index) =>
+      index === key ? replaceAtPath(item, path, nextValue, depth + 1) : item,
+    );
+  }
+  if (value !== null && typeof value === "object" && typeof key === "string") {
+    const record = value as Record<string, unknown>;
+    return {
+      ...record,
+      [key]: replaceAtPath(record[key], path, nextValue, depth + 1),
+    };
+  }
+  return value;
+}
+
+function PublicCopyEditor({
+  value,
+  path,
+  disabled,
+  onChange,
+}: {
+  value: unknown;
+  path: (string | number)[];
+  disabled: boolean;
+  onChange: (path: (string | number)[], value: unknown) => void;
+}) {
+  if (typeof value === "string") {
+    const label = String(path[path.length - 1]);
+    return (
+      <TextField
+        disabled={disabled}
+        label={readableLabel(label)}
+        maxLength={2000}
+        multiline={value.length > 100}
+        onChange={(nextValue) => onChange(path, nextValue)}
+        value={value}
+      />
+    );
+  }
+
+  if (Array.isArray(value)) {
+    const label = readableLabel(String(path[path.length - 1]));
+    const maxItems = label === "Pillars" ? 10 : 20;
+    return (
+      <fieldset className="space-y-3 rounded-xl border border-white/[0.06] p-3 sm:p-4">
+        <legend className="px-2 text-xs text-[#edcf81]">{label} ({value.length}/{maxItems})</legend>
+        {value.map((item, index) => (
+          <div className="space-y-3 rounded-xl border border-white/[0.06] p-3" key={`${label}-${index}`}>
+            <PublicCopyEditor
+              disabled={disabled}
+              onChange={onChange}
+              path={[...path, index]}
+              value={item}
+            />
+            <button
+              className="min-h-9 rounded-lg border border-red-300/20 px-3 text-xs text-red-200 hover:border-red-300/50"
+              disabled={disabled || value.length <= 1}
+              onClick={() => onChange(path, value.filter((_, itemIndex) => itemIndex !== index))}
+              type="button"
+            >
+              Remove {label.slice(0, -1).toLowerCase()}
+            </button>
+          </div>
+        ))}
+        <button
+          className="min-h-9 rounded-lg border border-[#d9af57]/25 px-3 text-xs text-[#edcf81] disabled:opacity-50"
+          disabled={disabled || value.length >= maxItems || value.length === 0}
+          onClick={() => onChange(path, [...value, structuredClone(value[0])])}
+          type="button"
+        >
+          Add {label.slice(0, -1).toLowerCase()}
+        </button>
+      </fieldset>
+    );
+  }
+
+  if (value !== null && typeof value === "object") {
+    return (
+      <div className="space-y-3">
+        {Object.entries(value).map(([key, child]) => (
+          <PublicCopyEditor
+            disabled={disabled}
+            key={key}
+            onChange={onChange}
+            path={[...path, key]}
+            value={child}
+          />
+        ))}
+      </div>
+    );
+  }
+  return null;
 }
 
 async function readResponse(response: Response): Promise<unknown> {
@@ -254,6 +364,13 @@ export function AdminHomepageContent() {
     }));
   }
 
+  function updatePublicPageCopy(path: (string | number)[], value: unknown) {
+    setContent((current) => ({
+      ...current,
+      publicPages: replaceAtPath(current.publicPages, path, value) as PublicPageCopy,
+    }));
+  }
+
   async function saveContent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -289,7 +406,7 @@ export function AdminHomepageContent() {
           Website content
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#827864]">
-          Manage homepage sections, detailed program pages, featured artist copy, sponsor inquiries, and footer social links.
+          Manage public page copy, create program categories and detailed program pages, feature artists, and update footer social links.
         </p>
       </header>
 
@@ -331,7 +448,7 @@ export function AdminHomepageContent() {
           />
         </SectionAccordion>
 
-        <SectionAccordion title="Programs" description="Manage the homepage cards, navigation links and full dedicated program pages.">
+        <SectionAccordion title="Programs" description="Create and manage program categories, homepage cards, and full dedicated pages.">
           <TextField disabled={disabled} label="Eyebrow" maxLength={80} onChange={(value) => setContent((current) => ({ ...current, programs: { ...current.programs, eyebrow: value } }))} value={content.programs.eyebrow} />
           <TextField disabled={disabled} label="Section heading" maxLength={240} multiline onChange={(value) => setContent((current) => ({ ...current, programs: { ...current.programs, heading: value } }))} value={content.programs.heading} />
           <div className="flex items-center justify-between gap-3">
@@ -343,7 +460,7 @@ export function AdminHomepageContent() {
               <legend className="px-2 text-xs text-[#edcf81]">{program.title || `New program ${index + 1}`}</legend>
               <div className="grid gap-3 sm:grid-cols-2">
                 <TextField disabled={disabled} label="Program title" maxLength={120} onChange={(title) => updateProgram(index, (item) => ({ ...item, title, slug: title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") }))} value={program.title} />
-                <TextField disabled={disabled} label="Category / tag" maxLength={100} onChange={(tag) => updateProgram(index, (item) => ({ ...item, tag }))} value={program.tag} />
+                <TextField disabled={disabled} label="Program category" maxLength={100} onChange={(tag) => updateProgram(index, (item) => ({ ...item, tag }))} value={program.tag} />
                 <TextField disabled={disabled} label="URL slug" maxLength={80} onChange={(slug) => updateProgram(index, (item) => ({ ...item, slug: slug.toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-").replace(/--+/g, "-").replace(/^-|-$/g, "") }))} value={program.slug} />
                 <TextField disabled={disabled} label="Card summary" maxLength={500} multiline onChange={(description) => updateProgram(index, (item) => ({ ...item, description }))} value={program.description} />
                 <div className="sm:col-span-2">
@@ -435,6 +552,23 @@ export function AdminHomepageContent() {
               ))}
             </div>
           </fieldset>
+        </SectionAccordion>
+
+        <SectionAccordion title="Public page copy & 404" description="Manage the labels and text shown across public pages, shared navigation, and the custom not-found page. Login, forms, and system messages stay unchanged.">
+          {Object.entries(content.publicPages).map(([page, pageCopy]) => (
+            <SectionAccordion
+              key={page}
+              title={readableLabel(page)}
+              description={`Edit the visible copy for ${readableLabel(page).toLowerCase()}.`}
+            >
+              <PublicCopyEditor
+                disabled={disabled}
+                onChange={updatePublicPageCopy}
+                path={[page]}
+                value={pageCopy}
+              />
+            </SectionAccordion>
+          ))}
         </SectionAccordion>
 
         <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:cursor-not-allowed disabled:opacity-60" disabled={disabled} type="submit">

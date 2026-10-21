@@ -1,4 +1,5 @@
 import type { EventItem } from "@/data/home-page-data";
+import { defaultPublicPageCopy, type PublicPageCopy } from "@/data/public-page-copy";
 import { listUpcomingPublishedEvents } from "@/services/events";
 
 type FeaturedEvent = {
@@ -10,6 +11,7 @@ type FeaturedEvent = {
 export async function getPublicEventData(
   fallbackEvents: EventItem[],
   fallbackFeaturedEvent: FeaturedEvent,
+  homeCopy: PublicPageCopy["home"] = defaultPublicPageCopy.home,
 ): Promise<{ upcomingEvents: EventItem[]; featuredEvent: FeaturedEvent }> {
   const events = await listUpcomingPublishedEvents();
   if (events === null) {
@@ -54,9 +56,9 @@ export async function getPublicEventData(
             : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(firstEvent.price),
         }
       : {
-          title: "New events coming soon",
-          schedule: "Check back soon",
-          audience: "Stay connected",
+          title: homeCopy.noFeaturedEvent,
+          schedule: homeCopy.noFeaturedSchedule,
+          audience: homeCopy.noFeaturedAudience,
         },
   };
 }

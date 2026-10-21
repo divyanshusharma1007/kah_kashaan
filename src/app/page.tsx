@@ -34,17 +34,18 @@ export default async function Home() {
   const { upcomingEvents, featuredEvent: currentFeaturedEvent } = await getPublicEventData(
     fallbackEvents,
     featuredEvent,
+    content.publicPages.home,
   );
 
   return (
     <SiteLayout navItems={navItems} logo={logo} content={content}>
       <HeroSection content={content} stats={content.stats ?? stats} featuredEvent={currentFeaturedEvent} upcomingEvents={upcomingEvents} />
       <AboutSection highlights={content.about.highlights ?? aboutHighlights} eyebrow={content.about.eyebrow} heading={content.about.heading} />
-      <ProgramSection programs={content.programs.items ?? programs} eyebrow={content.programs.eyebrow} heading={content.programs.heading} />
-      <EventsSection upcomingEvents={upcomingEvents} />
-      <FeaturedArtists preview content={content.featuredArtists} />
+      <ProgramSection programs={content.programs.items ?? programs} eyebrow={content.programs.eyebrow} heading={content.programs.heading} exploreLabel={content.publicPages.programDetail.exploreProgram} emptyMessage={content.publicPages.home.noPrograms} />
+      <EventsSection upcomingEvents={upcomingEvents} copy={content.publicPages.eventsPage} />
+      <FeaturedArtists preview content={content.featuredArtists} copy={content.publicPages.artistsPage} />
       <CommunitySection metrics={content.community.metrics ?? communityMetrics} eyebrow={content.community.eyebrow} heading={content.community.heading} description={content.community.description} />
-      <SponsorsSection sponsors={websiteSponsors ?? []} content={content.sponsors} />
+      <SponsorsSection sponsors={websiteSponsors ?? []} content={content.sponsors} copy={content.publicPages.home} />
     </SiteLayout>
   );
 }

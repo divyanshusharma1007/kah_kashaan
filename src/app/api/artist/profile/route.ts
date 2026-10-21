@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSignedInArtist } from "@/services/artist-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import {
   getArtistProfile,
   updateArtistProfile,
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid profile update request." }, 403);
   }
 

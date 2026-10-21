@@ -8,6 +8,7 @@ import {
   type ProgramContent,
   type SocialLinks,
 } from "@/data/hero-content";
+import { defaultPublicPageCopy, type PublicPageCopy } from "@/data/public-page-copy";
 import { getMongoClient } from "@/services/mongodb";
 
 type HomepageContentDocument = Partial<HeroContent> & {
@@ -68,9 +69,33 @@ function isSocialLink(value: unknown): value is string {
   }
 }
 
+function isImageSource(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim()) return false;
+  if (value.startsWith("/") && !value.startsWith("//") && !/\s/.test(value)) return true;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
+
 function isFooterVisibility(value: unknown): value is FooterVisibility {
   return isRecord(value) &&
     Object.keys(defaultHeroContent.footerVisibility).every((key) => typeof value[key] === "boolean");
+}
+
+function matchesPublicPageCopy(value: unknown, template: unknown): value is PublicPageCopy {
+  if (typeof template === "string") return isText(value, 2000);
+  if (Array.isArray(template)) {
+    return Array.isArray(value) &&
+      value.length <= 30 &&
+      (template.length === 0 || value.every((item) => matchesPublicPageCopy(item, template[0])));
+  }
+  if (!isRecord(template) || !isRecord(value)) return false;
+  return Object.entries(template).every(([key, expected]) =>
+    matchesPublicPageCopy(value[key], expected),
+  );
 }
 
 export function parseHeroContent(value: unknown):
@@ -78,7 +103,7 @@ export function parseHeroContent(value: unknown):
   | { success: false; error: string } {
   if (!isRecord(value)) return { success: false, error: "Enter valid homepage content." };
 
-  const { headline, description, stats, about, programs, community, featuredArtists, sponsors, socialLinks, footerVisibility } = value;
+  const { headline, description, stats, about, programs, community, featuredArtists, sponsors, socialLinks, footerVisibility, publicPages } = value;
   if (!isText(headline, 240) || !isText(description, 1200)) {
     return { success: false, error: "Enter a headline and description within the character limits." };
   }
@@ -144,6 +169,17 @@ export function parseHeroContent(value: unknown):
   if (!isFooterVisibility(footerVisibility)) {
     return { success: false, error: "Choose whether each footer link should be visible." };
   }
+  if (
+    !matchesPublicPageCopy(publicPages, defaultPublicPageCopy) ||
+    !isRecord(publicPages) ||
+    !isRecord(publicPages.aboutPage) ||
+    !Array.isArray(publicPages.aboutPage.teamMembers) ||
+    !publicPages.aboutPage.teamMembers.every((member) =>
+      isRecord(member) && isImageSource(member.image),
+    )
+  ) {
+    return { success: false, error: "Enter valid public page copy and valid team image URLs." };
+  }
 
   const cleanPrograms = programs.items.map((item) => ({
     slug: item.slug,
@@ -197,6 +233,7 @@ export function parseHeroContent(value: unknown):
         Object.entries(socialLinks).map(([network, url]) => [network, (url as string).trim()]),
       ) as SocialLinks,
       footerVisibility: { ...footerVisibility },
+      publicPages: publicPages as PublicPageCopy,
     },
   };
 }
@@ -254,6 +291,9 @@ function normalizeDocument(document: HomepageContentDocument | null): HeroConten
     footerVisibility: isFooterVisibility(document.footerVisibility)
       ? document.footerVisibility
       : defaultHeroContent.footerVisibility,
+    publicPages: matchesPublicPageCopy(document.publicPages, defaultPublicPageCopy)
+      ? document.publicPages
+      : defaultPublicPageCopy,
   };
 }
 

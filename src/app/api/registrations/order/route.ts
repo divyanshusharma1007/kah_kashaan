@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSignedInArtist } from "@/services/artist-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import { getArtistProfile, parseArtistRegistration } from "@/services/artist-directory";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 import { getUpcomingPublishedEvent } from "@/services/events";
@@ -26,7 +27,7 @@ function jsonResponse(body: object, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid payment request." }, 403);
   }
   const user = await getSignedInArtist(request);

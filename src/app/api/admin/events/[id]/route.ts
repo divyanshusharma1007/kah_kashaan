@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import {
   deleteEvent,
   getAdminEvent,
@@ -19,7 +20,7 @@ function jsonResponse(body: object, status = 200) {
 }
 
 function hasValidOrigin(request: NextRequest): boolean {
-  return request.headers.get("origin") === request.nextUrl.origin;
+  return hasValidRequestOrigin(request);
 }
 
 export async function GET(request: NextRequest, context: EventRouteContext) {

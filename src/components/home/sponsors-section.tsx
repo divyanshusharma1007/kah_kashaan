@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Reveal } from "@/components/home/reveal";
 import type { ManagedSponsor } from "@/services/sponsors";
+import type { PublicPageCopy } from "@/data/public-page-copy";
 
 type SponsorSectionContent = {
   eyebrow: string;
@@ -14,9 +15,11 @@ type SponsorSectionContent = {
 export function SponsorsSection({
   sponsors,
   content,
+  copy,
 }: {
   sponsors: ManagedSponsor[];
   content?: SponsorSectionContent;
+  copy: PublicPageCopy["home"];
 }) {
   const section = content ?? {
     eyebrow: "Sponsors & collaborators",
@@ -69,10 +72,10 @@ export function SponsorsSection({
             <div className="relative z-10 mt-8 border-t border-white/[0.08] pt-6">
               <div className="mb-4 flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-[9px] uppercase tracking-[0.25em] text-[#b29b65]">Our community</p>
-                  <h3 className="mt-1 font-[var(--font-display)] text-2xl text-[#fff5d9]">Website sponsors</h3>
+                  <p className="text-[9px] uppercase tracking-[0.25em] text-[#b29b65]">{copy.sponsorsCommunity}</p>
+                  <h3 className="mt-1 font-[var(--font-display)] text-2xl text-[#fff5d9]">{copy.websiteSponsors}</h3>
                 </div>
-                <Link className="text-xs text-[#e7d7aa] underline underline-offset-4 hover:text-white" href="/partners">View all</Link>
+                <Link className="text-xs text-[#e7d7aa] underline underline-offset-4 hover:text-white" href="/partners">{copy.viewAllSponsors}</Link>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {sponsors.map((sponsor) => (
@@ -98,7 +101,7 @@ export function SponsorsSection({
             </div>
           ) : (
             <p className="relative z-10 mt-7 border-t border-white/[0.08] pt-5 text-xs text-[#a99b7e]">
-              Website sponsor profiles will appear here when they are added by the Kah-Kashaan team.
+              {copy.noWebsiteSponsors}
             </p>
           )}
         </div>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-context";
 import type { NavItem } from "@/data/home-page-data";
 import type { ProgramContent } from "@/data/hero-content";
+import type { PublicPageCopy } from "@/data/public-page-copy";
 
 type SiteHeaderProps = {
   navItems: NavItem[];
@@ -14,6 +15,7 @@ type SiteHeaderProps = {
     src: string;
     alt: string;
   };
+  copy: PublicPageCopy["navigation"];
 };
 
 const navRoutes: Record<string, string> = {
@@ -35,11 +37,11 @@ function getNavHref(item: NavItem) {
   return navRoutes[section] ?? item.href;
 }
 
-export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
+export function SiteHeader({ navItems, logo, programs = [], copy }: SiteHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuth();
   const accountHref = user ? "/dashboard" : "/login";
-  const accountLabel = user ? "Dashboard" : "Log in / Sign up";
+  const accountLabel = user ? "Dashboard" : copy.guestAccount;
 
   return (
     <header className="fixed top-4 left-4 right-4 z-50 mx-auto max-w-7xl rounded-2xl border border-[#d9af57]/30 bg-[#101010]/90 px-5 py-3 shadow-[0_0_30px_rgba(217,175,87,0.1)] backdrop-blur-xl md:rounded-full">
@@ -66,13 +68,13 @@ export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
         {/* Desktop Navigation Links */}
         <div className="hidden items-center gap-8 text-sm uppercase tracking-[0.2em] text-[#e7d7aa] md:flex">
           {navItems.map((item) => (
-            item.label.trim().toLowerCase() === "programs" ? (
+            item.label.trim().toLowerCase() === copy.programs.trim().toLowerCase() ? (
               <details className="group relative" key={item.label}>
                 <summary className="cursor-pointer list-none transition hover:text-[#f9e8a0] [&::-webkit-details-marker]:hidden">
-                  Programs <span aria-hidden="true" className="ml-1 text-[10px]">⌄</span>
+                  {copy.programs} <span aria-hidden="true" className="ml-1 text-[10px]">⌄</span>
                 </summary>
                 <div className="absolute left-1/2 top-full z-50 mt-4 w-64 -translate-x-1/2 rounded-2xl border border-[#d9af57]/25 bg-[#10100f] p-2 shadow-2xl">
-                  <Link className="block rounded-xl px-3 py-2.5 text-xs text-[#edcf81] hover:bg-white/[0.05]" href="/programs">All programs</Link>
+                  <Link className="block rounded-xl px-3 py-2.5 text-xs text-[#edcf81] hover:bg-white/[0.05]" href="/programs">{copy.allPrograms}</Link>
                   {programs.map((program) => (
                     <Link className="block rounded-xl px-3 py-2.5 text-xs text-[#e7d7aa] hover:bg-white/[0.05] hover:text-white" href={`/programs/${encodeURIComponent(program.slug)}`} key={program.slug}>
                       {program.title}
@@ -87,7 +89,7 @@ export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
             )
           ))}
           <Link className="transition hover:text-[#f9e8a0]" href="/artists">
-            Artists
+            {copy.artists}
           </Link>
         </div>
 
@@ -101,7 +103,7 @@ export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
               href="/reserve"
               className="inline-block rounded-full border border-[#d9af57] bg-[#d9af57] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#111111] transition hover:bg-[#f3d98c]"
             >
-              Reserve Seat
+              {copy.reserveSeat}
             </Link>
           )}
         </div>
@@ -111,7 +113,7 @@ export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
           type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="rounded-lg p-2 text-[#e7d7aa] hover:text-[#f9e8a0] md:hidden focus:outline-none"
-          aria-label="Toggle mobile menu"
+          aria-label={copy.menuToggle}
           aria-expanded={mobileMenuOpen}
         >
           <svg
@@ -159,7 +161,7 @@ export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
                 >
                   {item.label}
                 </Link>
-                {item.label.trim().toLowerCase() === "programs" && programs.length > 0 && (
+                {item.label.trim().toLowerCase() === copy.programs.trim().toLowerCase() && programs.length > 0 && (
                   <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 pb-2 text-[10px] normal-case tracking-normal text-[#b9ab8c]">
                     {programs.map((program) => (
                       <Link href={`/programs/${encodeURIComponent(program.slug)}`} key={program.slug} onClick={() => setMobileMenuOpen(false)}>
@@ -175,7 +177,7 @@ export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
             onClick={() => setMobileMenuOpen(false)}
             className="py-2 transition hover:text-[#f9e8a0]"
             >
-            Artists
+            {copy.artists}
             </Link>
             <Link
               href={accountHref}
@@ -191,7 +193,7 @@ export function SiteHeader({ navItems, logo, programs = [] }: SiteHeaderProps) {
                   onClick={() => setMobileMenuOpen(false)}
                   className="inline-block w-full rounded-full border border-[#d9af57] bg-[#d9af57] py-3 text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#111111] transition hover:bg-[#f3d98c]"
                 >
-                  Reserve Seat
+                  {copy.reserveSeat}
                 </Link>
               </div>
             )}

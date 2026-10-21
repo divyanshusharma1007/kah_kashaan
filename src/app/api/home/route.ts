@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { sampleAboutTeam } from "@/data/about-team";
 import { defaultHeroContent } from "@/data/hero-content";
 import { getHomepageHeroContent } from "@/services/homepage-content";
 
@@ -17,11 +16,11 @@ export async function GET() {
   const homePageData = {
     heroContent,
     navItems: [
-      { label: "Home", href: "/" },
-      { label: "About", href: "/about" },
-      { label: "Programs", href: "/programs" },
-      { label: "Events", href: "/events" },
-      { label: "Community", href: "/community" },
+      { label: heroContent.publicPages.navigation.home, href: "/" },
+      { label: heroContent.publicPages.navigation.about, href: "/about" },
+      { label: heroContent.publicPages.navigation.programs, href: "/programs" },
+      { label: heroContent.publicPages.navigation.events, href: "/events" },
+      { label: heroContent.publicPages.navigation.community, href: "/community" },
     ],
     logo: {
       src: "/kah-kashaan-logo.png",
@@ -60,7 +59,7 @@ export async function GET() {
       },
     ],
     aboutHighlights: heroContent.about.highlights,
-    teamMembers: sampleAboutTeam,
+    teamMembers: heroContent.publicPages.aboutPage.teamMembers,
     communityMetrics: heroContent.community.metrics,
   };
 

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createSessionToken,
-  safelyEqual,
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
   verifyPassword,
 } from "@/services/auth-session";
 import { getMongoClient } from "@/services/mongodb";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 
 type UserDocument = {
   email?: string;
@@ -32,8 +32,7 @@ function isUserRole(value: unknown): value is "artist" | "admin" {
 }
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin || !safelyEqual(origin, request.nextUrl.origin)) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid login request." }, 403);
   }
 

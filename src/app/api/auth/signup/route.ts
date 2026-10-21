@@ -2,10 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   hashPassword,
-  safelyEqual,
 } from "@/services/auth-session";
 import { sendVerificationEmail } from "@/services/email-verification";
 import { getMongoClient } from "@/services/mongodb";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 
 type UserDocument = {
   email?: string;
@@ -39,8 +39,7 @@ function isDuplicateKeyError(error: unknown): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin || !safelyEqual(origin, request.nextUrl.origin)) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid signup request." }, 403);
   }
 

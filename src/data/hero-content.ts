@@ -1,3 +1,5 @@
+import { defaultPublicPageCopy, type PublicPageCopy } from "@/data/public-page-copy";
+
 export type HeroStat = {
   value: string;
   label: string;
@@ -70,6 +72,7 @@ export type HeroContent = {
   };
   socialLinks: SocialLinks;
   footerVisibility: FooterVisibility;
+  publicPages: PublicPageCopy;
 };
 
 export const defaultHeroContent: HeroContent = {
@@ -223,4 +226,5 @@ export const defaultHeroContent: HeroContent = {
     socialYoutube: true,
     socialLinkedin: true,
   },
+  publicPages: defaultPublicPageCopy,
 };

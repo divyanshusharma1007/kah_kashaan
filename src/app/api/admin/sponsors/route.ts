@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import { createSponsor, listAdminSponsors, parseSponsorInput } from "@/services/sponsors";
 
 function jsonResponse(body: object, status = 200) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid sponsor request." }, 403);
   }
   let body: unknown;

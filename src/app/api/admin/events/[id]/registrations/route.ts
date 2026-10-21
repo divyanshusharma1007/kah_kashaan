@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import {
   getAdminEvent,
   getAdminEventRegistrations,
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest, context: EventRegistrationsRoute
 export async function PATCH(request: NextRequest, context: EventRegistrationsRouteContext) {
   const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid event registration update request." }, 403);
   }
 

@@ -5,6 +5,8 @@ import { connection } from "next/server";
 import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
 import { getWebsiteSponsorBySlug } from "@/services/sponsors";
+import { getHomepageHeroContent } from "@/services/homepage-content";
+import { defaultHeroContent } from "@/data/hero-content";
 
 export default async function PartnerProfilePage({
   params,
@@ -12,20 +14,25 @@ export default async function PartnerProfilePage({
   params: Promise<{ slug: string }>;
 }) {
   await connection();
-  const [{ navItems, logo }, { slug }] = await Promise.all([getHomePageData(), params]);
+  const [{ navItems, logo }, { slug }, content] = await Promise.all([
+    getHomePageData(),
+    params,
+    getHomepageHeroContent(),
+  ]);
   const partner = await getWebsiteSponsorBySlug(slug);
 
   if (partner === null) throw new Error("Sponsor details are temporarily unavailable.");
   if (!partner) {
     notFound();
   }
+  const copy = (content ?? defaultHeroContent).publicPages.partnersPage;
 
   return (
-    <SiteLayout navItems={navItems} logo={logo}>
+    <SiteLayout navItems={navItems} logo={logo} content={content ?? undefined}>
       <section className="py-10 sm:py-14">
         <article className="mx-auto max-w-3xl rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-5 sm:rounded-[2rem] sm:p-10">
           <p className="text-[10px] uppercase tracking-[0.3em] text-[#d9af57]">
-            Sponsor profile{partner.category ? ` · ${partner.category}` : ""}
+            {copy.profileEyebrow}{partner.category ? ` · ${partner.category}` : ""}
           </p>
           {partner.logoUrl ? (
             <Image alt={`${partner.name} logo`} className="mt-7 h-16 w-16 rounded-2xl bg-white object-contain p-2 sm:h-20 sm:w-20" height={80} src={partner.logoUrl} unoptimized width={80} />
@@ -44,14 +51,14 @@ export default async function PartnerProfilePage({
             rel="noreferrer"
             className="mt-7 inline-block break-all text-sm text-[#d9af57] underline decoration-[#d9af57]/40 underline-offset-4 hover:text-[#fff5d9]"
           >
-            Visit business website: {partner.website}
+            {copy.websiteLabel}: {partner.website}
           </a>
           <div>
             <Link
               href="/partners"
               className="mt-9 inline-flex min-h-11 items-center rounded-full border border-[#d9af57]/40 px-5 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[#f0ddab] transition hover:border-[#f2d98b]"
             >
-              Back to all partners
+              {copy.backToPartners}
             </Link>
           </div>
         </article>

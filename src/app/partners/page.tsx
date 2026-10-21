@@ -5,6 +5,7 @@ import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
 import { listWebsiteSponsors } from "@/services/sponsors";
 import { getHomepageHeroContent } from "@/services/homepage-content";
+import { defaultHeroContent } from "@/data/hero-content";
 
 export default async function PartnersPage() {
   await connection();
@@ -13,20 +14,21 @@ export default async function PartnersPage() {
     listWebsiteSponsors(),
     getHomepageHeroContent(),
   ]);
+  const copy = (content ?? defaultHeroContent).publicPages.partnersPage;
 
   return (
     <SiteLayout navItems={navItems} logo={logo} content={content ?? undefined}>
       <section className="py-10 sm:py-14">
         <div className="mb-8 max-w-3xl">
-          <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">Sponsors & partners</p>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">{copy.eyebrow}</p>
           <h1 className="mt-4 font-[var(--font-display)] text-4xl text-[#fff5d9] sm:text-5xl md:text-6xl">
-            The people behind the circle
+            {copy.heading}
           </h1>
           <p className="mt-4 text-sm leading-7 text-[#d8c8a2] sm:text-base">
-            Meet the sponsors and community partners who are helping bring Kah-Kashaan programs to life.
+            {copy.description}
           </p>
           <Link className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#d9af57] px-5 text-xs font-semibold uppercase tracking-[0.15em] text-[#14120d] transition hover:bg-[#f2d98b]" href="/partners/inquire">
-            Become a sponsor or partner <span aria-hidden="true" className="ml-2">↗</span>
+            {copy.inquiryButton} <span aria-hidden="true" className="ml-2">↗</span>
           </Link>
         </div>
 
@@ -41,19 +43,19 @@ export default async function PartnersPage() {
                     {sponsor.name.trim().charAt(0).toUpperCase()}
                   </span>
                 )}
-                <p className="mt-5 text-[9px] uppercase tracking-[0.24em] text-[#d9af57]">{sponsor.category || "Community partner"}</p>
+                <p className="mt-5 text-[9px] uppercase tracking-[0.24em] text-[#d9af57]">{sponsor.category || copy.defaultCategory}</p>
                 <h2 className="mt-2 break-words font-[var(--font-display)] text-3xl text-[#f7ebc0]">{sponsor.name}</h2>
                 <p className="mt-3 text-sm leading-6 text-[#c9bea2]">{sponsor.summary || sponsor.details}</p>
                 <Link className="mt-5 inline-flex min-h-10 items-center text-xs font-medium text-[#e7d7aa] underline underline-offset-4 hover:text-white" href={`/partners/${sponsor.slug}`}>
-                  Open sponsor profile
+                  {copy.openProfile}
                 </Link>
               </article>
             ))}
           </div>
         ) : (
           <div className="rounded-[1.5rem] border border-dashed border-[#d9af57]/20 bg-[#111111] p-8 text-center">
-            <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]">Sponsor profiles coming soon</h2>
-            <p className="mt-2 text-sm text-[#a99b7e]">Public sponsors will appear here once they are published by an administrator.</p>
+            <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]">{copy.noSponsorsHeading}</h2>
+            <p className="mt-2 text-sm text-[#a99b7e]">{copy.noSponsorsDescription}</p>
           </div>
         )}
       </section>

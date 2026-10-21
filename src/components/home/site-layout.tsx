@@ -22,9 +22,9 @@ export async function SiteLayout({ navItems, logo, children, content: providedCo
     <main className="relative min-h-screen overflow-hidden bg-[#050505] text-brand-text-primary">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(217,175,87,0.18),_transparent_30%),linear-gradient(180deg,#050505_0%,#090909_40%,#040404_100%)]" />
       <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-28 sm:px-6 lg:px-8">
-        <SiteHeader navItems={navItems} logo={logo} programs={content.programs.items} />
+        <SiteHeader navItems={navItems} logo={logo} programs={content.programs.items} copy={content.publicPages.navigation} />
         {children}
-        <SiteFooter socialLinks={content.socialLinks} visibility={content.footerVisibility} />
+        <SiteFooter socialLinks={content.socialLinks} visibility={content.footerVisibility} copy={content.publicPages.footer} />
       </div>
     </main>
   );

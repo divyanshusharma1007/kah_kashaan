@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
+import { hasValidRequestOrigin } from "@/services/request-origin";
 import {
   isValidArtistSkillId,
   parseArtistSkill,
@@ -17,7 +18,7 @@ function jsonResponse(body: object, status = 200) {
 export async function PUT(request: NextRequest, context: SkillRouteContext) {
   const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!hasValidRequestOrigin(request)) {
     return jsonResponse({ error: "Invalid skill update request." }, 403);
   }
 

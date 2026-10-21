@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { PublicPageCopy } from "@/data/public-page-copy";
 
 type FeaturedArtist = {
   id: string;
@@ -29,6 +30,7 @@ function isFeaturedArtist(value: unknown): value is FeaturedArtist {
 
 export function FeaturedArtists({
   preview = false,
+  copy,
   content = {
     eyebrow: "The Kah-Kashaan community",
     heading: preview ? "Meet our featured artists" : "Featured artists",
@@ -36,6 +38,7 @@ export function FeaturedArtists({
   },
 }: {
   preview?: boolean;
+  copy: PublicPageCopy["artistsPage"];
   content?: { eyebrow: string; heading: string; description: string };
 }) {
   const [artists, setArtists] = useState<FeaturedArtist[]>([]);
@@ -54,7 +57,7 @@ export function FeaturedArtists({
         }
         if (!response.ok) {
           const message = result && typeof result === "object" && "error" in result &&
-            typeof result.error === "string" ? result.error : "Could not load featured artists.";
+            typeof result.error === "string" ? result.error : copy.loadError;
           throw new Error(message);
         }
         if (!result || typeof result !== "object" || !("artists" in result) ||
@@ -65,7 +68,7 @@ export function FeaturedArtists({
       })
       .catch((cause: unknown) => {
         console.error("Could not load the public artist directory.", cause);
-        if (active) setError(cause instanceof Error ? cause.message : "Could not load featured artists.");
+        if (active) setError(cause instanceof Error ? cause.message : copy.loadError);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -73,7 +76,7 @@ export function FeaturedArtists({
     return () => {
       active = false;
     };
-  }, []);
+  }, [copy.loadError]);
 
   const visibleArtists = preview ? artists.slice(0, 3) : artists;
 
@@ -103,16 +106,16 @@ export function FeaturedArtists({
             className="rounded-full border border-[#d9af57]/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#f0ddab] transition hover:border-[#f2d98b] hover:text-[#fff5d9]"
             href="/artists"
           >
-            View all featured artists
+            {copy.viewAll}
           </Link>
         )}
       </div>
       {error && <p className="mt-6 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">{error}</p>}
       {loading ? (
-        <p className="mt-8 text-sm text-[#a99b7e]" role="status">Loading featured artists...</p>
+        <p className="mt-8 text-sm text-[#a99b7e]" role="status">{copy.loading}</p>
       ) : artists.length === 0 ? (
         <p className="mt-8 rounded-2xl border border-white/[0.08] bg-[#10100f] p-6 text-sm text-[#a99b7e]">
-          No artists have been featured yet. Please check back soon.
+          {copy.noArtists}
         </p>
       ) : (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -134,7 +137,7 @@ export function FeaturedArtists({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#090908] via-[#090908]/5 to-transparent" />
                   <span className="absolute left-4 top-4 rounded-full border border-[#f3d98c]/25 bg-black/55 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-[#f3d98c] backdrop-blur">
-                    Featured artist
+                    {copy.featuredBadge}
                   </span>
                   <span className="absolute bottom-4 left-5 right-5">
                     <span className="block font-[var(--font-display)] text-3xl text-[#fff5d9]">{artist.name}</span>
@@ -145,14 +148,14 @@ export function FeaturedArtists({
                 </div>
               ) : (
                 <div className="relative grid h-72 place-items-center bg-[radial-gradient(circle_at_50%_35%,rgba(217,175,87,0.25),transparent_42%),linear-gradient(145deg,#342814,#10100f)] font-[var(--font-display)] text-7xl text-[#e9c76e]">
-                  <span className="absolute left-4 top-4 rounded-full border border-[#f3d98c]/25 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-[#f3d98c]">Featured artist</span>
+                  <span className="absolute left-4 top-4 rounded-full border border-[#f3d98c]/25 bg-black/35 px-3 py-1.5 text-[9px] uppercase tracking-[0.2em] text-[#f3d98c]">{copy.featuredBadge}</span>
                   {artist.name.trim().charAt(0).toUpperCase()}
                   <span className="absolute bottom-4 left-5 right-5 text-center font-[var(--font-display)] text-3xl text-[#fff5d9]">{artist.name}</span>
                 </div>
               )}
               <div className="p-5 pt-4">
                 {!artist.hasPhoto && (artist.city || artist.state) && <p className="text-xs text-[#a99b7e]">{[artist.city, artist.state].filter(Boolean).join(", ")}</p>}
-                <p className="line-clamp-3 text-sm leading-6 text-[#c9bea2]">{artist.bio || "Discover this featured artist's creative practice."}</p>
+                <p className="line-clamp-3 text-sm leading-6 text-[#c9bea2]">{artist.bio || copy.defaultBio}</p>
                 {artist.skills.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {artist.skills.slice(0, 4).map((skill) => (
@@ -161,7 +164,7 @@ export function FeaturedArtists({
                   </div>
                 )}
                 <span className="mt-5 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#edcf81]">
-                  View artist profile <span aria-hidden="true">→</span>
+                  {copy.profileLink} <span aria-hidden="true">→</span>
                 </span>
               </div>
             </Link>
