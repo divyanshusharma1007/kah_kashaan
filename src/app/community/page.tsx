@@ -1,21 +1,17 @@
 import { CommunitySection } from "@/components/home/community-section";
 import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
-import { getHomepageHeroContent } from "@/services/homepage-content";
 
 export default async function CommunityPage() {
-  const [{ navItems, logo, communityMetrics }, content] = await Promise.all([
-    getHomePageData(),
-    getHomepageHeroContent(),
-  ]);
+  const { navItems, logo, heroContent } = await getHomePageData();
 
   return (
-    <SiteLayout navItems={navItems} logo={logo} content={content ?? undefined}>
+    <SiteLayout navItems={navItems} logo={logo} content={heroContent}>
       <CommunitySection
-        metrics={content?.community.metrics ?? communityMetrics}
-        eyebrow={content?.community.eyebrow}
-        heading={content?.community.heading}
-        description={content?.community.description}
+        metrics={heroContent.community.metrics}
+        eyebrow={heroContent.community.eyebrow}
+        heading={heroContent.community.heading}
+        description={heroContent.community.description}
       />
     </SiteLayout>
   );
