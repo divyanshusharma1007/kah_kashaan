@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArtistSkillSelector } from "@/components/auth/artist-skill-selector";
 import { useAuth } from "@/components/auth/auth-context";
+import { defaultHeroContent } from "@/data/hero-content";
+import type { PublicPageCopy } from "@/data/public-page-copy";
 import type { ArtistSkill } from "@/services/artist-skills";
 
 type RazorpayCheckoutResponse = {
@@ -37,6 +39,7 @@ type RegistrationFormProps = {
   eventChoices?: { id: string; title: string; skillIds: string[]; price: number }[];
   selectedEvent?: string;
   selectedEventId?: string;
+  copy?: PublicPageCopy["registrationForm"];
 };
 
 function loadRazorpayCheckout(): Promise<void> {
@@ -62,7 +65,13 @@ function loadRazorpayCheckout(): Promise<void> {
   });
 }
 
-export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent, selectedEventId }: RegistrationFormProps) {
+export function RegistrationForm({
+  eventNames,
+  eventChoices = [],
+  selectedEvent,
+  selectedEventId,
+  copy = defaultHeroContent.publicPages.registrationForm,
+}: RegistrationFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, ready } = useAuth();
@@ -338,13 +347,13 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
   return (
     <form className="rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-5 sm:p-8" onSubmit={handleSubmit}>
       <div className="mb-5 rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-4">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#a79a7d]">Registering as</p>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#a79a7d]">{copy.registeringAsLabel}</p>
         <p className="mt-1 text-sm font-medium text-[#f0e6ce]">{signedInArtist.name}</p>
         <p className="mt-1 break-all text-xs text-[#827864]">{signedInArtist.email}</p>
       </div>
       {eventNames.length > 1 && (
         <label className="block text-xs uppercase tracking-[0.16em] text-[#e7d7aa]" htmlFor="registration-event">
-          Choose an event
+          {copy.chooseEventLabel}
           <select
             className="mt-2 min-h-12 w-full rounded-xl border border-[#d9af57]/20 bg-[#090909] px-4 py-3 text-base normal-case tracking-normal text-[#fff5d9] outline-none focus:border-[#d9af57]"
             id="registration-event"
@@ -359,18 +368,18 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
             required
             value={eventName}
           >
-            <option value="">Select an event</option>
+            <option value="">{copy.selectEventLabel}</option>
             {eventNames.map((name) => <option key={name} value={name}>{name}</option>)}
           </select>
         </label>
       )}
       <fieldset className="mt-5" disabled={loadingSkills || submitting}>
-        <legend className="text-xs font-medium uppercase tracking-[0.16em] text-[#e7d7aa]">What would you like to perform?</legend>
+        <legend className="text-xs font-medium uppercase tracking-[0.16em] text-[#e7d7aa]">{copy.skillsHeading}</legend>
         <p className="mb-3 mt-2 text-xs leading-5 text-[#a99b7e]">
-          Select the skills you plan to perform. Your profile skills are preselected; events with requirements need at least one required skill saved on your profile.
+          {copy.skillsDescription}
         </p>
         {loadingSkills ? (
-          <p className="rounded-xl border border-white/[0.08] p-4 text-sm text-[#a99b7e]" role="status">Loading performance skills...</p>
+          <p className="rounded-xl border border-white/[0.08] p-4 text-sm text-[#a99b7e]" role="status">{copy.loadingSkillsLabel}</p>
         ) : (
           <ArtistSkillSelector
             disabledIds={visibleSkills
@@ -386,7 +395,7 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
       {selectedEventPrice > 0 ? (
         <fieldset className="mt-6" disabled={submitting}>
           <legend className="text-xs font-medium uppercase tracking-[0.16em] text-[#e7d7aa]">
-            Payment option · {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(selectedEventPrice)}
+            {copy.paymentOptionLabel} · {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(selectedEventPrice)}
           </legend>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className={`cursor-pointer rounded-xl border p-4 transition ${
@@ -400,9 +409,9 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
                 type="radio"
                 value="online"
               />
-              <span className="ml-2 text-sm font-medium text-[#f0e6ce]">Pay online now</span>
+              <span className="ml-2 text-sm font-medium text-[#f0e6ce]">{copy.payOnlineLabel}</span>
               <span className="mt-2 block pl-6 text-xs leading-5 text-[#a99b7e]">
-                Secure Razorpay checkout with credit and debit cards.
+                {copy.onlineDescription}
               </span>
             </label>
             <label className={`cursor-pointer rounded-xl border p-4 transition ${
@@ -416,16 +425,16 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
                 type="radio"
                 value="at-event"
               />
-              <span className="ml-2 text-sm font-medium text-[#f0e6ce]">Pay at the event</span>
+              <span className="ml-2 text-sm font-medium text-[#f0e6ce]">{copy.payAtEventLabel}</span>
               <span className="mt-2 block pl-6 text-xs leading-5 text-[#a99b7e]">
-                Reserve your place and pay the event team on arrival.
+                {copy.atEventDescription}
               </span>
             </label>
           </div>
         </fieldset>
       ) : (
         <p className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-950/15 p-4 text-sm text-emerald-100">
-          This event is free. No payment is required.
+          {copy.freeEventMessage}
         </p>
       )}
       {!loadingSkills && !error && selectedChoice?.skillIds.length && !isEligibleForSelectedEvent && (
@@ -455,10 +464,10 @@ export function RegistrationForm({ eventNames, eventChoices = [], selectedEvent,
         </button>
       )}
       <p className="mt-5 text-xs leading-5 text-[#a99b7e]">
-        A phone number is optional. You can add your contact details and performance skills to your profile at any time.
+        {copy.phoneNote}
       </p>
       <button className="mt-6 min-h-12 w-full rounded-full border border-[#d9af57] bg-[#d9af57] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2d98b] sm:w-auto" disabled={submitting || loadingSkills || !isEligibleForSelectedEvent || (eventNames.length > 1 && !eventName)} type="submit">
-        {submitting ? "Processing..." : selectedEventPrice > 0 && paymentOption === "online" ? "Pay & register" : "Register for event"}
+        {submitting ? copy.processingLabel : selectedEventPrice > 0 && paymentOption === "online" ? copy.payAndRegisterLabel : copy.registerLabel}
       </button>
     </form>
   );

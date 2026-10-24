@@ -11,8 +11,10 @@ export default async function ReservePage({
   searchParams: Promise<{ event?: string }>;
 }) {
   await connection();
-  const [{ navItems, logo, featuredEvent, upcomingEvents: fallbackEvents }, { event: selectedEvent }] =
+  const [{ navItems, logo, heroContent, featuredEvent, upcomingEvents: fallbackEvents }, { event: selectedEvent }] =
     await Promise.all([getHomePageData(), searchParams]);
+  const copy = heroContent.publicPages.reservePage;
+  const registrationCopy = heroContent.publicPages.registrationForm;
   const { upcomingEvents } = await getPublicEventData(
     fallbackEvents,
     featuredEvent,
@@ -21,17 +23,16 @@ export default async function ReservePage({
   const selectedEventId = upcomingEvents.find((event) => event.title === selectedEvent)?.id;
 
   return (
-    <SiteLayout navItems={navItems} logo={logo}>
+    <SiteLayout navItems={navItems} logo={logo} content={heroContent}>
       <section className="py-10 sm:py-14">
         <div className="mx-auto max-w-3xl">
           <div className="mb-8 max-w-2xl">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">Event registration</p>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">{copy.eyebrow}</p>
             <h1 className="mt-4 font-[var(--font-display)] text-4xl text-[#fff5d9] sm:text-5xl md:text-6xl">
-              Save your seat
+              {copy.heading}
             </h1>
             <p className="mt-4 text-sm leading-7 text-[#d8c8a2] sm:text-base">
-              Choose a published gathering and register your details. Your registration will be
-              shared with the event team and saved to your artist dashboard.
+              {copy.description}
             </p>
           </div>
           {eventNames.length > 0 ? (
@@ -47,12 +48,13 @@ export default async function ReservePage({
               eventNames={eventNames}
               selectedEvent={selectedEvent}
               selectedEventId={selectedEventId}
+              copy={registrationCopy}
             />
           ) : (
             <p className="rounded-2xl border border-[#d9af57]/20 bg-[#111111] p-6 text-sm leading-7 text-[#d8c8a2]">
-              There are no upcoming events available for registration right now. Please check the{" "}
-              <Link className="text-[#f0ddab] underline underline-offset-4" href="/events">events page</Link>{" "}
-              again soon.
+              {copy.noEventsLead}{" "}
+              <Link className="text-[#f0ddab] underline underline-offset-4" href="/events">{copy.eventsLinkLabel}</Link>{" "}
+              {copy.noEventsTail}
             </p>
           )}
         </div>

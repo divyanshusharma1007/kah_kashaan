@@ -90,6 +90,7 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
             eventNames={[event.title]}
             selectedEvent={event.title}
             selectedEventId={event.id}
+            copy={heroContent.publicPages.registrationForm}
           />
         </section>
       </main>

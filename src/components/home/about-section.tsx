@@ -3,15 +3,11 @@ import { Reveal } from "@/components/home/reveal";
 
 type AboutSectionProps = {
   highlights: AboutHighlight[];
-  eyebrow?: string;
-  heading?: string;
+  eyebrow: string;
+  heading: string;
 };
 
-export function AboutSection({
-  highlights,
-  eyebrow = "About us",
-  heading = "A circle for literary growth and cultural belonging.",
-}: AboutSectionProps) {
+export function AboutSection({ highlights, eyebrow, heading }: AboutSectionProps) {
   return (
     <section id="about" className="py-14">
       <Reveal>

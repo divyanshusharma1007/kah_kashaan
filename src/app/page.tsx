@@ -45,7 +45,12 @@ export default async function Home() {
       <EventsSection upcomingEvents={upcomingEvents} copy={content.publicPages.eventsPage} />
       <FeaturedArtists preview content={content.featuredArtists} copy={content.publicPages.artistsPage} />
       <CommunitySection metrics={content.community.metrics ?? communityMetrics} eyebrow={content.community.eyebrow} heading={content.community.heading} description={content.community.description} />
-      <SponsorsSection sponsors={websiteSponsors ?? []} content={content.sponsors} copy={content.publicPages.home} />
+      <SponsorsSection
+        sponsors={websiteSponsors ?? []}
+        content={content.sponsors}
+        copy={content.publicPages.home}
+        partnerCopy={content.publicPages.partnersPage}
+      />
     </SiteLayout>
   );
 }

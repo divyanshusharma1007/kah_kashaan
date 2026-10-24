@@ -25,7 +25,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error?.response?.data?.message || error.message || "Something went wrong";
+    const message = axios.isAxiosError(error)
+      ? (error.response?.data?.message ?? error.message)
+      : error instanceof Error
+        ? error.message
+        : "Something went wrong";
+
     return Promise.reject(new Error(message));
   }
 );

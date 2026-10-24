@@ -13,6 +13,13 @@ type ArtistProfileData = {
   pinCode: string;
   bio: string;
   skillIds: string[];
+  links: ArtistProfileLink[];
+};
+
+type ArtistProfileLink = {
+  label: string;
+  url: string;
+  type: "book" | "social" | "website";
 };
 
 const emptyProfile: ArtistProfileData = {
@@ -23,6 +30,7 @@ const emptyProfile: ArtistProfileData = {
   pinCode: "",
   bio: "",
   skillIds: [],
+  links: [],
 };
 
 async function readJson(response: Response): Promise<unknown> {
@@ -75,7 +83,11 @@ export function ArtistProfile() {
             typeof rawProfile.pinCode !== "string" || typeof rawProfile.bio !== "string" ||
             (rawProfile.photoFileId !== null && typeof rawProfile.photoFileId !== "string") ||
             !Array.isArray(rawProfile.skillIds) ||
-            !rawProfile.skillIds.every((id) => typeof id === "string")) {
+            !rawProfile.skillIds.every((id) => typeof id === "string") ||
+            !Array.isArray(rawProfile.links) ||
+            !rawProfile.links.every((link) => link && typeof link === "object" &&
+              typeof link.label === "string" && typeof link.url === "string" &&
+              (link.type === "book" || link.type === "social" || link.type === "website"))) {
           throw new Error("Your artist profile returned invalid details.");
         }
         if (active) {
@@ -110,6 +122,15 @@ export function ArtistProfile() {
 
   function updateField<K extends keyof ArtistProfileData>(key: K, value: ArtistProfileData[K]) {
     setProfile((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateLink(index: number, key: keyof ArtistProfileLink, value: string) {
+    setProfile((current) => ({
+      ...current,
+      links: current.links.map((link, linkIndex) =>
+        linkIndex === index ? { ...link, [key]: value } : link,
+      ),
+    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -255,6 +276,76 @@ export function ArtistProfile() {
               selectedIds={profile.skillIds}
               skills={skills}
             />
+          </fieldset>
+
+          <fieldset className="space-y-3">
+            <legend className="text-xs font-medium text-[#cbbd9f]">Books, social media &amp; website links</legend>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs leading-5 text-[#827864]">
+                These links are visible to everyone when your profile is featured. Add up to 20 secure HTTPS links.
+              </p>
+              <button
+                className="min-h-10 rounded-full border border-[#d9af57]/35 px-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#f0ddab] transition hover:border-[#d9af57] disabled:opacity-50"
+                disabled={profile.links.length >= 20}
+                onClick={() => updateField("links", [...profile.links, { label: "", url: "", type: "social" }])}
+                type="button"
+              >
+                Add link
+              </button>
+            </div>
+            {profile.links.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-white/[0.1] p-4 text-xs text-[#827864]">
+                Add a book purchase link, social profile, or personal website.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {profile.links.map((link, index) => (
+                  <div className="grid gap-3 rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-3 sm:grid-cols-[1fr_1.5fr_0.8fr_auto] sm:items-end" key={`profile-link-${index}`}>
+                    <label className={labelClass}>
+                      Link name
+                      <input
+                        className={inputClass}
+                        maxLength={60}
+                        onChange={(event) => updateLink(index, "label", event.target.value)}
+                        placeholder={link.type === "book" ? "My book on Amazon" : "YouTube"}
+                        value={link.label}
+                      />
+                    </label>
+                    <label className={labelClass}>
+                      URL
+                      <input
+                        className={inputClass}
+                        maxLength={2048}
+                        onChange={(event) => updateLink(index, "url", event.target.value)}
+                        placeholder="https://..."
+                        type="url"
+                        value={link.url}
+                      />
+                    </label>
+                    <label className={labelClass}>
+                      Link type
+                      <select
+                        className={inputClass}
+                        onChange={(event) => updateLink(index, "type", event.target.value)}
+                        value={link.type}
+                      >
+                        <option value="book">Book</option>
+                        <option value="social">Social</option>
+                        <option value="website">Website</option>
+                      </select>
+                    </label>
+                    <button
+                      aria-label={`Remove ${link.label || `link ${index + 1}`}`}
+                      className="min-h-11 rounded-xl border border-red-400/20 px-3 text-xs text-red-200 transition hover:bg-red-950/30"
+                      onClick={() => updateField("links", profile.links.filter((_, linkIndex) => linkIndex !== index))}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </fieldset>
         </fieldset>
         <div className="flex flex-wrap items-center gap-4 border-t border-white/[0.07] pt-5">

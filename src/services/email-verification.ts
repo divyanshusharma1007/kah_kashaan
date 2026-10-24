@@ -1,5 +1,7 @@
 import "server-only";
 
+import nodemailer from "nodemailer";
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -9,40 +11,38 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-export function getEmailVerificationConfiguration() {
-  const appUrl = process.env.APP_URL?.trim();
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.EMAIL_FROM?.trim();
-  if (!appUrl || !apiKey || !from) {
-    throw new Error("APP_URL, RESEND_API_KEY, and EMAIL_FROM must be configured to send verification emails.");
+function getAppBaseUrl(): URL {
+  const configuredUrl = process.env.APP_URL?.trim() || process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (!configuredUrl) {
+    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be configured to create verification links.");
   }
 
-  let baseUrl: URL;
+  let appUrl: URL;
   try {
-    baseUrl = new URL(appUrl);
+    appUrl = new URL(configuredUrl);
   } catch {
-    throw new Error("APP_URL must be a valid absolute URL.");
+    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be a valid absolute URL.");
   }
-  if (baseUrl.protocol !== "https:" && baseUrl.hostname !== "localhost") {
-    throw new Error("APP_URL must use HTTPS outside localhost.");
+  if (appUrl.protocol !== "https:" && appUrl.hostname !== "localhost") {
+    throw new Error("The app URL must use HTTPS outside localhost.");
   }
 
-  return { apiKey, from };
+  return new URL(appUrl.origin);
+}
+
+export function getEmailVerificationConfiguration() {
+  const user = process.env.SMTP_USER?.trim();
+  const password = process.env.SMTP_APP_PASSWORD?.replace(/\s/g, "");
+  if (!user || !password) {
+    throw new Error("SMTP_USER and SMTP_APP_PASSWORD must be configured to send verification emails.");
+  }
+
+  getAppBaseUrl();
+  return { user, password };
 }
 
 function getVerificationUrl(token: string): URL {
-  const appUrl = process.env.APP_URL?.trim() || "http://localhost:3000";
-  let baseUrl: URL;
-  try {
-    baseUrl = new URL(appUrl);
-  } catch {
-    throw new Error("APP_URL must be a valid absolute URL.");
-  }
-  if (baseUrl.protocol !== "https:" && baseUrl.hostname !== "localhost") {
-    throw new Error("APP_URL must use HTTPS outside localhost.");
-  }
-
-  const verificationUrl = new URL("/api/auth/verify-email", baseUrl);
+  const verificationUrl = new URL("/api/auth/verify-email", getAppBaseUrl());
   verificationUrl.searchParams.set("token", token);
   return verificationUrl;
 }
@@ -56,32 +56,21 @@ export async function sendVerificationEmail({
   name: string;
   token: string;
 }): Promise<void> {
+  const { user, password } = getEmailVerificationConfiguration();
   const verificationUrl = getVerificationUrl(token);
-  if (process.env.NODE_ENV === "development") {
-    console.info(`[email-verification] Development link for ${email}: ${verificationUrl}`);
-    return;
-  }
-
-  const { apiKey, from } = getEmailVerificationConfiguration();
   const safeName = escapeHtml(name);
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject: "Verify your Kah-Kashaan email",
-      text: `Hello ${name},\n\nVerify your email address to activate your Kah-Kashaan account:\n${verificationUrl}\n\nThis link expires in 24 hours. If you did not create this account, you can ignore this email.`,
-      html: `<p>Hello ${safeName},</p><p>Verify your email address to activate your Kah-Kashaan account:</p><p><a href="${verificationUrl.toString()}">Verify my email</a></p><p>This link expires in 24 hours. If you did not create this account, you can ignore this email.</p>`,
-    }),
-    cache: "no-store",
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: { user, pass: password },
   });
 
-  if (!response.ok) {
-    throw new Error(`Email provider rejected the verification message (HTTP ${response.status}).`);
-  }
+  await transporter.sendMail({
+    from: `"Kah-Kashaan" <${user}>`,
+    to: email,
+    subject: "Verify your Kah-Kashaan email",
+    text: `Hello ${name},\n\nVerify your email address to activate your Kah-Kashaan account:\n${verificationUrl}\n\nThis link expires in 24 hours. If you did not create this account, you can ignore this email.`,
+    html: `<p>Hello ${safeName},</p><p>Verify your email address to activate your Kah-Kashaan account:</p><p><a href="${verificationUrl.toString()}">Verify my email</a></p><p>This link expires in 24 hours. If you did not create this account, you can ignore this email.</p>`,
+  });
 }

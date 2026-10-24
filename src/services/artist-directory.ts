@@ -20,6 +20,12 @@ export type ArtistRegistrationInput = {
   paidEventPrice?: number;
 };
 
+export type ArtistProfileLink = {
+  label: string;
+  url: string;
+  type: "book" | "social" | "website";
+};
+
 export type ArtistProfileData = {
   name: string;
   email: string;
@@ -30,6 +36,7 @@ export type ArtistProfileData = {
   pinCode: string;
   bio: string;
   skillIds: string[];
+  links: ArtistProfileLink[];
   photoFileId: string | null;
 };
 
@@ -49,8 +56,9 @@ export type ArtistDirectoryEntry = {
   photoFileId: string | null;
   accountExists: boolean;
   isActive: boolean;
+  emailVerified: boolean;
   role: "artist" | "admin" | "guest";
-  featuredStatus: "not-requested" | "requested" | "featured";
+  featuredStatus: "not-requested" | "requested" | "featured" | "rejected";
   registrations: {
     eventName: string;
     createdAt: string;
@@ -81,12 +89,14 @@ type ArtistAccountDocument = {
   pinCode?: string;
   bio?: string;
   skillIds?: string[];
+  links?: ArtistProfileLink[];
   photoFileId?: string | null;
   isActive?: boolean;
   updatedAt?: Date;
   role?: string;
   emailVerified?: boolean;
-  featuredStatus?: "not-requested" | "requested" | "featured";
+  featuredStatus?: "not-requested" | "requested" | "featured" | "rejected";
+  featureRejectedAt?: Date;
   createdAt?: Date;
 };
 
@@ -97,10 +107,12 @@ export type PublicArtistProfile = {
   state: string;
   bio: string;
   skills: string[];
+  links: ArtistProfileLink[];
   hasPhoto: boolean;
 };
 
-type FeaturedArtistStatus = "not-requested" | "requested" | "featured";
+type FeaturedArtistStatus = "not-requested" | "requested" | "featured" | "rejected";
+const FEATURE_REQUEST_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function withAdminRoleLock<T>(
   database: Db,
@@ -223,6 +235,7 @@ export async function getArtistProfile(email: string): Promise<ArtistProfileData
           pinCode: 1,
           bio: 1,
           skillIds: 1,
+          links: 1,
           photoFileId: 1,
         },
         collation: { locale: "en", strength: 2 },
@@ -238,8 +251,31 @@ export async function getArtistProfile(email: string): Promise<ArtistProfileData
     pinCode: account?.pinCode?.trim() || "",
     bio: account?.bio?.trim() || "",
     skillIds: account?.skillIds?.filter((id) => typeof id === "string") || [],
+    links: normalizeArtistProfileLinks(account?.links),
     photoFileId: typeof account?.photoFileId === "string" ? account.photoFileId : null,
   };
+}
+
+function normalizeArtistProfileLinks(value: unknown): ArtistProfileLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): ArtistProfileLink[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const link = entry as Partial<ArtistProfileLink>;
+    if (
+      typeof link.label !== "string" ||
+      typeof link.url !== "string" ||
+      (link.type !== "book" && link.type !== "social" && link.type !== "website")
+    ) {
+      return [];
+    }
+    try {
+      const url = new URL(link.url);
+      if (url.protocol !== "https:" || url.username || url.password) return [];
+    } catch {
+      return [];
+    }
+    return [{ label: link.label, url: link.url, type: link.type }];
+  }).slice(0, 20);
 }
 
 export async function updateArtistProfilePhoto(email: string, photoFileId: string): Promise<boolean | null> {
@@ -364,7 +400,7 @@ export async function revokeAdminAccount(
 
 export async function getArtistFeatureStatus(
   email: string,
-): Promise<{ status: FeaturedArtistStatus; profileId: string | null } | null> {
+): Promise<{ status: FeaturedArtistStatus; profileId: string | null; retryAt: string | null } | null> {
   const client = await getMongoClient();
   if (!client) return null;
   const databaseName = process.env.MONGODB_DB?.trim();
@@ -373,52 +409,99 @@ export async function getArtistFeatureStatus(
     .collection<ArtistAccountDocument>("users")
     .findOne(
       { role: "artist", $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }] },
-      { projection: { featuredStatus: 1 }, collation: { locale: "en", strength: 2 } },
+      { projection: { featuredStatus: 1, featureRejectedAt: 1 }, collation: { locale: "en", strength: 2 } },
     );
   if (!artist) return null;
+  const retryAt = artist.featureRejectedAt
+    ? new Date(artist.featureRejectedAt.getTime() + FEATURE_REQUEST_COOLDOWN_MS)
+    : null;
   return {
     status: artist.featuredStatus ?? "not-requested",
     profileId: artist.featuredStatus === "featured" && artist._id ? artist._id.toHexString() : null,
+    retryAt: retryAt?.toISOString() ?? null,
   };
 }
 
 export async function requestArtistFeature(
   email: string,
-): Promise<FeaturedArtistStatus | null | "not-found"> {
+): Promise<FeaturedArtistStatus | null | "not-found" | { status: "rejected"; retryAt: string }> {
   const client = await getMongoClient();
   if (!client) return null;
   const databaseName = process.env.MONGODB_DB?.trim();
   const users = client.db(databaseName || undefined).collection<ArtistAccountDocument>("users");
   const artist = await users.findOne(
     { role: "artist", $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }] },
-    { projection: { featuredStatus: 1 }, collation: { locale: "en", strength: 2 } },
+    { projection: { featuredStatus: 1, featureRejectedAt: 1 }, collation: { locale: "en", strength: 2 } },
   );
   if (!artist) return "not-found";
   if (artist.featuredStatus === "featured") return "featured";
-  await users.updateOne(
-    { _id: artist._id, role: "artist", featuredStatus: { $ne: "featured" } },
-    { $set: { featuredStatus: "requested", updatedAt: new Date() } },
+  if (artist.featuredStatus === "requested") return "requested";
+  const now = new Date();
+  if (artist.featuredStatus === "rejected" && artist.featureRejectedAt) {
+    const retryAt = new Date(artist.featureRejectedAt.getTime() + FEATURE_REQUEST_COOLDOWN_MS);
+    if (retryAt > now) return { status: "rejected", retryAt: retryAt.toISOString() };
+  }
+  const updated = await users.updateOne(
+    {
+      $and: [
+        {
+          role: "artist",
+          $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }],
+        },
+        artist.featuredStatus === "rejected"
+          ? {
+            featuredStatus: "rejected",
+            $or: [
+              { featureRejectedAt: { $exists: false } },
+              { featureRejectedAt: { $lte: new Date(now.getTime() - FEATURE_REQUEST_COOLDOWN_MS) } },
+            ],
+          }
+          : {
+            $or: [
+              { featuredStatus: "not-requested" },
+              { featuredStatus: { $exists: false } },
+            ],
+          },
+      ],
+    },
+    {
+      $set: { featuredStatus: "requested", updatedAt: now },
+      $unset: { featureRejectedAt: "" },
+    },
   );
+  if (updated.matchedCount === 0) {
+    const currentStatus = await getArtistFeatureStatus(email);
+    if (!currentStatus) return null;
+    if (currentStatus.status === "rejected" && currentStatus.retryAt) {
+      return { status: "rejected", retryAt: currentStatus.retryAt };
+    }
+    return currentStatus.status;
+  }
   return "requested";
 }
 
-export async function setArtistFeaturedStatus(
+export async function setArtistFeatureDecision(
   email: string,
-  featured: boolean,
+  decision: "approve" | "reject" | "remove",
 ): Promise<boolean | null> {
   const client = await getMongoClient();
   if (!client) return null;
   const databaseName = process.env.MONGODB_DB?.trim();
+  const filter = {
+    role: "artist",
+    $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }],
+    ...(decision === "approve" ? { emailVerified: { $ne: false } } : {}),
+  };
   const result = await client
     .db(databaseName || undefined)
     .collection<ArtistAccountDocument>("users")
     .updateOne(
-      {
-        role: "artist",
-        emailVerified: { $ne: false },
-        $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }],
-      },
-      { $set: { featuredStatus: featured ? "featured" : "not-requested", updatedAt: new Date() } },
+      filter,
+      decision === "approve"
+        ? { $set: { featuredStatus: "featured", updatedAt: new Date() }, $unset: { featureRejectedAt: "" } }
+        : decision === "reject"
+          ? { $set: { featuredStatus: "rejected", featureRejectedAt: new Date(), updatedAt: new Date() } }
+          : { $set: { featuredStatus: "not-requested", updatedAt: new Date() }, $unset: { featureRejectedAt: "" } },
       { collation: { locale: "en", strength: 2 } },
     );
   return result.matchedCount > 0;
@@ -442,6 +525,7 @@ export async function listPublicFeaturedArtists(): Promise<PublicArtistProfile[]
       state: 1,
       bio: 1,
       skillIds: 1,
+      links: 1,
       photoFileId: 1,
     })
     .sort({ name: 1 })
@@ -466,6 +550,7 @@ export async function listPublicFeaturedArtists(): Promise<PublicArtistProfile[]
       const name = skillNames.get(id);
       return name ? [name] : [];
     }) ?? [],
+    links: normalizeArtistProfileLinks(artist.links),
     hasPhoto: typeof artist.photoFileId === "string",
   }] : []);
 }
@@ -484,7 +569,7 @@ export async function getPublicFeaturedArtist(id: string): Promise<PublicArtistP
       isActive: { $ne: false },
       emailVerified: { $ne: false },
     },
-    { projection: { name: 1, city: 1, state: 1, bio: 1, skillIds: 1, photoFileId: 1 } },
+    { projection: { name: 1, city: 1, state: 1, bio: 1, skillIds: 1, links: 1, photoFileId: 1 } },
   );
   if (!artist?._id) return undefined;
   const skillIds = artist.skillIds?.filter((skillId): skillId is string => /^[\da-f]{24}$/i.test(skillId)) ?? [];
@@ -505,6 +590,7 @@ export async function getPublicFeaturedArtist(id: string): Promise<PublicArtistP
       const name = skillNames.get(skillId);
       return name ? [name] : [];
     }),
+    links: normalizeArtistProfileLinks(artist.links),
     hasPhoto: typeof artist.photoFileId === "string",
   };
 }
@@ -623,7 +709,10 @@ export async function listArtistDirectory(): Promise<ArtistDirectoryEntry[] | nu
   const [accounts, registrations] = await Promise.all([
     database
       .collection<ArtistAccountDocument>("users")
-      .find({ role: { $in: ["artist", "admin"] }, emailVerified: { $ne: false } })
+      .find({
+        role: { $in: ["artist", "admin"] },
+        $or: [{ emailVerified: { $ne: false } }, { featuredStatus: "requested" }],
+      })
       .project<ArtistAccountDocument & { _id: ObjectId }>({
         email: 1,
         emailNormalized: 1,
@@ -637,6 +726,7 @@ export async function listArtistDirectory(): Promise<ArtistDirectoryEntry[] | nu
         skillIds: 1,
         photoFileId: 1,
         isActive: 1,
+        emailVerified: 1,
         role: 1,
         featuredStatus: 1,
       })
@@ -702,6 +792,7 @@ export async function listArtistDirectory(): Promise<ArtistDirectoryEntry[] | nu
       photoFileId: typeof account.photoFileId === "string" ? account.photoFileId : null,
       accountExists: true,
       isActive: account.isActive !== false,
+      emailVerified: account.emailVerified !== false,
       role: account.role === "admin" ? "admin" : "artist",
       featuredStatus: account.featuredStatus ?? "not-requested",
       registrations: [],
@@ -742,6 +833,7 @@ export async function listArtistDirectory(): Promise<ArtistDirectoryEntry[] | nu
       photoFileId: null,
       accountExists: false,
       isActive: true,
+      emailVerified: false,
       role: "guest",
       featuredStatus: "not-requested",
       registrations: [record],

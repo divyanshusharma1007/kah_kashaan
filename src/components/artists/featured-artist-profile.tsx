@@ -13,6 +13,7 @@ type FeaturedArtist = {
   state: string;
   bio: string;
   skills: string[];
+  links: { label: string; url: string; type: "book" | "social" | "website" }[];
   hasPhoto: boolean;
 };
 
@@ -26,6 +27,10 @@ function isFeaturedArtist(value: unknown): value is FeaturedArtist {
     typeof artist.bio === "string" &&
     Array.isArray(artist.skills) &&
     artist.skills.every((skill) => typeof skill === "string") &&
+    Array.isArray(artist.links) &&
+    artist.links.every((link) => link && typeof link === "object" &&
+      typeof link.label === "string" && typeof link.url === "string" &&
+      (link.type === "book" || link.type === "social" || link.type === "website")) &&
     typeof artist.hasPhoto === "boolean";
 }
 
@@ -112,6 +117,30 @@ export function FeaturedArtistProfile({ copy }: { copy: PublicPageCopy["artistDe
                   </div>
                 </div>
               )}
+              {(["book", "social", "website"] as const).map((type) => {
+                const links = artist.links.filter((link) => link.type === type);
+                if (links.length === 0) return null;
+                const heading = type === "book" ? "Books & publications" : type === "social" ? "Connect" : "Websites";
+                return (
+                  <div className="mt-8" key={type}>
+                    <h2 className="text-[10px] uppercase tracking-[0.18em] text-[#d9af57]">{heading}</h2>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {links.map((link, index) => (
+                        <a
+                          className="inline-flex min-h-10 items-center rounded-full border border-[#d9af57]/25 px-4 py-2 text-xs text-[#f0ddab] transition hover:border-[#d9af57]/60 hover:text-[#fff5d9]"
+                          href={link.url}
+                          key={`${type}-${link.url}-${index}`}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          {link.label}
+                          <span aria-hidden="true" className="ml-2">↗</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </article>

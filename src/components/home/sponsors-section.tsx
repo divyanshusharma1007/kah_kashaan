@@ -16,46 +16,36 @@ export function SponsorsSection({
   sponsors,
   content,
   copy,
+  partnerCopy,
 }: {
   sponsors: ManagedSponsor[];
-  content?: SponsorSectionContent;
+  content: SponsorSectionContent;
   copy: PublicPageCopy["home"];
+  partnerCopy: PublicPageCopy["partnersPage"];
 }) {
-  const section = content ?? {
-    eyebrow: "Sponsors & collaborators",
-    heading: "Make room for the next great gathering.",
-    description:
-      "We welcome organizations that believe in creative expression and community. Explore a partnership with Kah-Kashaan and help bring future programs to life.",
-    buttonLabel: "Explore partnership opportunities",
-    benefits: [
-      { title: "Support culture", description: "Help create welcoming spaces for literature, live performance, and meaningful conversation." },
-      { title: "Meet the community", description: "Connect your organization with artists, readers, learners, and local audiences." },
-      { title: "Build together", description: "Shape a thoughtful partnership around the gatherings and programs you care about." },
-    ],
-  };
   return (
     <section aria-labelledby="sponsors-heading" className="py-14">
       <Reveal>
         <div className="relative overflow-hidden rounded-[2rem] border border-[#d9af57]/25 bg-[radial-gradient(circle_at_88%_12%,rgba(217,175,87,0.16),transparent_32%),linear-gradient(135deg,#19160f,#0d0d0c_70%)] p-6 sm:p-9 lg:p-11">
           <div className="relative z-10 grid gap-9 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#d9af57]">{section.eyebrow}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#d9af57]">{content.eyebrow}</p>
               <h2 className="mt-3 max-w-2xl font-[var(--font-display)] text-4xl leading-tight text-[#fff5d9] sm:text-5xl" id="sponsors-heading">
-                {section.heading}
+                {content.heading}
               </h2>
               <p className="mt-4 max-w-xl text-sm leading-7 text-[#c9bea2]">
-                {section.description}
+                {content.description}
               </p>
               <Link
                 className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-[#d9af57] px-6 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#15130e] transition hover:-translate-y-0.5 hover:bg-[#f2d98b]"
                 href="/partners/inquire"
               >
-                {section.buttonLabel} <span aria-hidden="true" className="ml-2">↗</span>
+                {content.buttonLabel} <span aria-hidden="true" className="ml-2">↗</span>
               </Link>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              {section.benefits.map((benefit, index) => (
+              {content.benefits.map((benefit, index) => (
                 <article className="rounded-2xl border border-white/[0.08] bg-black/20 p-4 transition hover:border-[#d9af57]/30 sm:p-5" key={`${benefit.title}-${index}`}>
                   <div className="flex items-start gap-4">
                     <span className="font-[var(--font-display)] text-2xl text-[#d9af57]">{String(index + 1).padStart(2, "0")}</span>
@@ -93,7 +83,7 @@ export function SponsorsSection({
                     )}
                     <span className="min-w-0">
                       <span className="block break-words text-sm font-medium text-[#f0e6ce]">{sponsor.name}</span>
-                      <span className="mt-1 block truncate text-[10px] text-[#a99b7e]">{sponsor.category || "Community sponsor"}</span>
+                      <span className="mt-1 block truncate text-[10px] text-[#a99b7e]">{sponsor.category || partnerCopy.defaultCategory}</span>
                     </span>
                   </Link>
                 ))}

@@ -27,8 +27,9 @@ function isArtist(value: unknown): value is ArtistDirectoryEntry {
   (artist.photoFileId === null || typeof artist.photoFileId === "string") &&
   typeof artist.accountExists === "boolean" &&
   typeof artist.isActive === "boolean" &&
+  typeof artist.emailVerified === "boolean" &&
   (artist.role === "artist" || artist.role === "admin" || artist.role === "guest") &&
-  (artist.featuredStatus === "not-requested" || artist.featuredStatus === "requested" || artist.featuredStatus === "featured") &&
+  (artist.featuredStatus === "not-requested" || artist.featuredStatus === "requested" || artist.featuredStatus === "featured" || artist.featuredStatus === "rejected") &&
   Array.isArray(artist.registrations) &&
   artist.registrations.every((registration) =>
     registration &&
@@ -41,17 +42,21 @@ function isArtist(value: unknown): value is ArtistDirectoryEntry {
 export function AdminArtistDirectory() {
   const searchParams = useSearchParams();
   const initialEmail = searchParams.get("email")?.trim().toLowerCase() ?? "";
+  const initialFeatureFilter = searchParams.get("feature") === "requested" ? "requested" : "all";
   const [artists, setArtists] = useState<ArtistDirectoryEntry[]>([]);
   const [query, setQuery] = useState(initialEmail);
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [featureFilter, setFeatureFilter] = useState("all");
-  const [sortOrder, setSortOrder] = useState("name");
+  const [roleFilter, setRoleFilter] = useState(initialFeatureFilter === "requested" ? "artist" : "all");
+  const [featureFilter, setFeatureFilter] = useState(initialFeatureFilter);
+  const [sortOrder, setSortOrder] = useState("requests");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [expandedEmail, setExpandedEmail] = useState(initialEmail);
   const [updatingEmail, setUpdatingEmail] = useState("");
   const [historyQueryByEmail, setHistoryQueryByEmail] = useState<Record<string, string>>({});
+  const pendingFeatureRequests = artists.filter((artist) =>
+    artist.role === "artist" && artist.featuredStatus === "requested",
+  );
 
   useEffect(() => {
     let active = true;
@@ -164,7 +169,7 @@ export function AdminArtistDirectory() {
     }
   }
 
-  async function updateArtistFeature(artist: ArtistDirectoryEntry, featured: boolean) {
+  async function updateArtistFeature(artist: ArtistDirectoryEntry, decision: "approve" | "reject" | "remove") {
     setUpdatingEmail(artist.email);
     setError("");
     setMessage("");
@@ -172,7 +177,7 @@ export function AdminArtistDirectory() {
       const response = await fetch("/api/admin/artists", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: artist.email, featured }),
+        body: JSON.stringify({ email: artist.email, featureDecision: decision }),
       });
       let result: unknown;
       try {
@@ -189,12 +194,17 @@ export function AdminArtistDirectory() {
       }
       setArtists((current) => current.map((item) =>
         item.email === artist.email
-          ? { ...item, featuredStatus: featured ? "featured" : "not-requested" }
+          ? {
+            ...item,
+            featuredStatus: decision === "approve" ? "featured" : decision === "reject" ? "rejected" : "not-requested",
+          }
           : item,
       ));
-      setMessage(featured
+      setMessage(decision === "approve"
         ? `${artist.name} is now featured on the public artist directory.`
-        : `${artist.name} is no longer visible in the public artist directory.`);
+        : decision === "reject"
+          ? `${artist.name}'s request was rejected. They can request again after one month.`
+          : `${artist.name} is no longer visible in the public artist directory.`);
     } catch (cause) {
       console.error("Could not update featured artist visibility.", cause);
       setError(cause instanceof Error ? cause.message : "Could not update artist visibility.");
@@ -214,7 +224,10 @@ export function AdminArtistDirectory() {
           .includes(normalizedQuery))
       .sort((left, right) => sortOrder === "recent"
         ? (right.registrations[0]?.createdAt ?? "").localeCompare(left.registrations[0]?.createdAt ?? "")
-        : left.name.localeCompare(right.name));
+        : sortOrder === "name"
+          ? left.name.localeCompare(right.name)
+          : Number(right.featuredStatus === "requested") - Number(left.featuredStatus === "requested") ||
+            left.name.localeCompare(right.name));
   }, [artists, query, roleFilter, featureFilter, sortOrder]);
 
   return (
@@ -250,15 +263,65 @@ export function AdminArtistDirectory() {
             <option value="all">All feature requests</option>
             <option value="requested">Feature requested</option>
             <option value="featured">Featured publicly</option>
+            <option value="rejected">Request rejected</option>
             <option value="not-requested">Not featured</option>
           </select>
           <label className="sr-only" htmlFor="artist-sort">Sort profiles</label>
           <select className={inputClass} id="artist-sort" onChange={(event) => setSortOrder(event.target.value)} value={sortOrder}>
+            <option value="requests">Requests first</option>
             <option value="name">Sort by name</option>
             <option value="recent">Recent event activity</option>
           </select>
         </div>
       </div>
+
+      <section className="mt-5 rounded-2xl border border-[#d9af57]/25 bg-gradient-to-r from-[#d9af57]/[0.08] to-transparent p-4 sm:p-5" aria-labelledby="pending-feature-requests-heading">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#d9af57]">Review queue</p>
+            <h2 className="mt-1 font-[var(--font-display)] text-2xl text-[#fff5d9]" id="pending-feature-requests-heading">
+              Pending feature requests <span className="text-[#d9af57]">({pendingFeatureRequests.length})</span>
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#a99b7e]">
+              New artist requests appear here and are prioritized in the directory below.
+            </p>
+          </div>
+          <button
+            className="min-h-10 rounded-full border border-[#d9af57]/40 px-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#f0ddab] transition hover:border-[#d9af57] disabled:opacity-50"
+            disabled={pendingFeatureRequests.length === 0}
+            onClick={() => {
+              setFeatureFilter("requested");
+              setRoleFilter("artist");
+              setQuery("");
+            }}
+            type="button"
+          >
+            Review requests
+          </button>
+        </div>
+        {pendingFeatureRequests.length > 0 && (
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {pendingFeatureRequests.slice(0, 6).map((artist) => (
+              <li className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/20 px-3 py-2.5" key={artist.email}>
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium text-[#f0e6ce]">{artist.name}</span>
+                  <span className="mt-1 block truncate text-[10px] text-[#827864]">{artist.email}</span>
+                </span>
+                {!artist.emailVerified && (
+                  <span className="shrink-0 rounded-full bg-amber-950/40 px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-amber-200">
+                    Verify email
+                  </span>
+                )}
+              </li>
+            ))}
+            {pendingFeatureRequests.length > 6 && (
+              <li className="flex items-center px-3 text-xs text-[#a99b7e]">
+                +{pendingFeatureRequests.length - 6} more pending
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
 
       {error && (
         <p className="mt-5 rounded-xl border border-red-400/30 bg-red-950/30 p-4 text-sm text-red-200" role="alert">
@@ -365,20 +428,45 @@ export function AdminArtistDirectory() {
                     </button>
                   )}
                   {artist.role === "artist" && (
-                    <button
-                      className="min-h-9 rounded-lg border border-[#d9af57]/20 px-3 text-xs text-[#f0ddab] transition hover:border-[#d9af57]/45 disabled:opacity-50"
-                      disabled={updatingEmail === artist.email}
-                      onClick={() => void updateArtistFeature(artist, artist.featuredStatus !== "featured")}
-                      type="button"
-                    >
-                      {updatingEmail === artist.email
-                        ? "Updating..."
-                        : artist.featuredStatus === "featured"
-                          ? "Remove from website"
-                          : artist.featuredStatus === "requested"
-                            ? "Approve feature request"
-                            : "Feature on website"}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      {artist.featuredStatus === "requested" ? (
+                        <>
+                          <button
+                            className="min-h-9 rounded-lg border border-emerald-300/25 px-3 text-xs text-emerald-100 transition hover:border-emerald-300/50 disabled:opacity-50"
+                            disabled={updatingEmail === artist.email || !artist.emailVerified}
+                            onClick={() => void updateArtistFeature(artist, "approve")}
+                            type="button"
+                          >
+                            {updatingEmail === artist.email ? "Updating..." : "Approve request"}
+                          </button>
+                          <button
+                            className="min-h-9 rounded-lg border border-red-300/25 px-3 text-xs text-red-100 transition hover:border-red-300/50 disabled:opacity-50"
+                            disabled={updatingEmail === artist.email}
+                            onClick={() => void updateArtistFeature(artist, "reject")}
+                            type="button"
+                          >
+                            Reject request
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="min-h-9 rounded-lg border border-[#d9af57]/20 px-3 text-xs text-[#f0ddab] transition hover:border-[#d9af57]/45 disabled:opacity-50"
+                          disabled={updatingEmail === artist.email || (!artist.emailVerified && artist.featuredStatus !== "featured")}
+                          onClick={() => void updateArtistFeature(artist, artist.featuredStatus === "featured" ? "remove" : "approve")}
+                          type="button"
+                        >
+                          {!artist.emailVerified && artist.featuredStatus !== "featured"
+                            ? "Verify email before featuring"
+                            : updatingEmail === artist.email
+                              ? "Updating..."
+                              : artist.featuredStatus === "featured"
+                                ? "Remove from website"
+                                : artist.featuredStatus === "rejected"
+                                  ? "Feature on website"
+                                  : "Feature on website"}
+                        </button>
+                      )}
+                    </div>
                   )}
                   <label className={`flex items-center gap-2 text-xs ${artist.role === "artist" ? "text-[#cbbd9f]" : "text-[#746d5b]"}`}>
                     <input

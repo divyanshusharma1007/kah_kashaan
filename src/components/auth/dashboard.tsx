@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AdminOverview } from "@/components/auth/admin-overview";
 import { ArtistFeatureRequest } from "@/components/auth/artist-feature-request";
-import { ArtistProfile } from "@/components/auth/artist-profile";
 import { useAuth, type ArtistRegistration } from "@/components/auth/auth-context";
 
 const adminNavigation = [
@@ -76,10 +75,11 @@ function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "art
 }
 
 function routeTitle(pathname: string, isAdmin: boolean): string {
+  if (!isAdmin && pathname === "/dashboard/artist/profile") return "Profile settings";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/featured")) return "Public profile";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/registration-success")) return "Registration confirmed";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/register")) return "Register for event";
-  if (!isAdmin || pathname === "/dashboard/artist") return "My registrations";
+  if (!isAdmin || pathname === "/dashboard/artist") return "Overview";
   if (pathname.startsWith("/dashboard/events/new")) return "Create event";
   if (pathname.startsWith("/dashboard/content")) return "Website content";
   if (pathname.includes("/overview")) return "Event overview";
@@ -171,7 +171,7 @@ export function Dashboard({ children }: { children: ReactNode }) {
         ) : (
           <>
             <p className="px-3 pb-2 pt-5 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#746d5b]">
-              Account
+              Artist workspace
             </p>
             <Link
               aria-current={pathname === "/dashboard/artist" ? "page" : undefined}
@@ -182,7 +182,18 @@ export function Dashboard({ children }: { children: ReactNode }) {
               onClick={() => setMobileMenuOpen(false)}
             >
               <DashboardIcon name="artist" />
-              My registrations
+              Overview
+            </Link>
+            <Link
+              aria-current={pathname === "/dashboard/artist/profile" ? "page" : undefined}
+              className={`mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-xs ${
+                pathname === "/dashboard/artist/profile" ? "bg-[#d9af57]/10 text-[#f3d98c]" : "text-[#a99b7e] hover:bg-white/[0.04]"
+              }`}
+              href="/dashboard/artist/profile"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <DashboardIcon name="artist" />
+              Profile settings
             </Link>
             <Link
               aria-current={pathname.startsWith("/dashboard/artist/featured") ? "page" : undefined}
@@ -305,7 +316,6 @@ export function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentTime, setCurrentTime] = useState<number | null>(null);
-  const [activeEventIndex, setActiveEventIndex] = useState(0);
   const [activeRegistrationIndex, setActiveRegistrationIndex] = useState(0);
 
   useEffect(() => {
@@ -316,14 +326,6 @@ export function DashboardHome() {
       window.clearInterval(interval);
     };
   }, []);
-
-  useEffect(() => {
-    if (upcomingEvents.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => {
-      setActiveEventIndex((index) => (index + 1) % upcomingEvents.length);
-    }, 7000);
-    return () => window.clearInterval(timer);
-  }, [upcomingEvents.length]);
 
   useEffect(() => {
     if (user?.role !== "artist") return;
@@ -366,7 +368,6 @@ export function DashboardHome() {
         });
         if (active) {
           setUpcomingEvents(parsed);
-          setActiveEventIndex(0);
           setEventsError("");
         }
       })
@@ -473,14 +474,7 @@ export function DashboardHome() {
       currentTime === null ||
       new Date(registration.eventStartsAt).getTime() >= currentTime),
   );
-  const activeEvent = upcomingEvents[activeEventIndex];
   const activeRegistration = visibleRegistrations[activeRegistrationIndex];
-
-  function moveEvent(direction: -1 | 1) {
-    setActiveEventIndex((index) =>
-      (index + direction + upcomingEvents.length) % upcomingEvents.length,
-    );
-  }
 
   function moveRegistration(direction: -1 | 1) {
     setActiveRegistrationIndex((index) =>
@@ -524,7 +518,25 @@ export function DashboardHome() {
           </div>
         </header>
       )}
-      {user?.role === "artist" && user.provider && <ArtistProfile />}
+      {user?.role === "artist" && (
+        <nav aria-label="Artist dashboard shortcuts" className="grid gap-3 sm:grid-cols-3">
+          <Link className="rounded-2xl border border-[#d9af57]/20 bg-[#10100f] p-4 transition hover:border-[#d9af57]/45" href="/dashboard/artist/profile">
+            <span className="block text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Your identity</span>
+            <span className="mt-2 block text-sm font-medium text-[#f0e6ce]">Edit artist profile</span>
+            <span className="mt-1 block text-xs text-[#827864]">Photo, bio, skills and links</span>
+          </Link>
+          <Link className="rounded-2xl border border-white/[0.08] bg-[#10100f] p-4 transition hover:border-[#d9af57]/35" href="/dashboard/artist/featured">
+            <span className="block text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Public presence</span>
+            <span className="mt-2 block text-sm font-medium text-[#f0e6ce]">Feature request</span>
+            <span className="mt-1 block text-xs text-[#827864]">Check your listing status</span>
+          </Link>
+          <Link className="rounded-2xl border border-white/[0.08] bg-[#10100f] p-4 transition hover:border-[#d9af57]/35" href="/dashboard/artist/register">
+            <span className="block text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Find a stage</span>
+            <span className="mt-2 block text-sm font-medium text-[#f0e6ce]">Register for events</span>
+            <span className="mt-1 block text-xs text-[#827864]">Browse available performances</span>
+          </Link>
+        </nav>
+      )}
       <section aria-labelledby="upcoming-events-heading">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -557,55 +569,46 @@ export function DashboardHome() {
           <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">Loading upcoming events...</p>
         ) : upcomingEvents.length === 0 ? (
           <div className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">No upcoming events just yet.</div>
-        ) : activeEvent ? (
-          <div className="dashboard-card-hover overflow-hidden rounded-2xl border border-white/[0.08] bg-[#10100f]" aria-roledescription="carousel" aria-label="Upcoming events">
-            <article key={activeEvent.id} className="dashboard-enter">
-              <div className="border-b border-white/[0.06] bg-[radial-gradient(circle_at_top_right,rgba(217,175,87,0.12),transparent_45%),linear-gradient(90deg,#19160f,#10100f)] p-5 sm:p-7">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">{activeEvent.type}</p>
-                    <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[#f7ebc0] sm:text-4xl">{activeEvent.title}</h2>
-                    <p className="mt-2 text-xs leading-5 text-[#d8c8a2]">
-                      {new Intl.DateTimeFormat("en-IN", {
-                        dateStyle: "full",
-                        timeStyle: "short",
-                        timeZone: "Asia/Kolkata",
-                      }).format(new Date(activeEvent.startsAt))}
-                      {" · "}{activeEvent.location}{activeEvent.city ? `, ${activeEvent.city}` : ""}
-                    </p>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {upcomingEvents.map((event) => (
+              <article className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#10100f]" key={event.id}>
+                <div className="border-b border-white/[0.06] bg-[radial-gradient(circle_at_top_right,rgba(217,175,87,0.12),transparent_45%),linear-gradient(90deg,#19160f,#10100f)] p-5">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">{event.type}</p>
+                  <h2 className="mt-2 font-[var(--font-display)] text-2xl text-[#f7ebc0]">{event.title}</h2>
+                  <p className="mt-2 text-xs leading-5 text-[#d8c8a2]">
+                    {new Intl.DateTimeFormat("en-IN", {
+                      dateStyle: "full",
+                      timeStyle: "short",
+                      timeZone: "Asia/Kolkata",
+                    }).format(new Date(event.startsAt))}
+                    {" · "}{event.location}{event.city ? `, ${event.city}` : ""}
+                  </p>
+                </div>
+                <div className="p-5">
+                  <p className="text-sm leading-6 text-[#c9bea2]">{event.description}</p>
+                  <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#d2b46a]">
+                    <span className="rounded-full border border-[#d9af57]/20 px-3 py-1.5">
+                      {event.price === 0
+                        ? "Free entry"
+                        : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(event.price)}
+                    </span>
+                    {event.capacity !== null && <span className="rounded-full border border-white/[0.08] px-3 py-1.5">{event.capacity} seats</span>}
+                    {event.organizer && <span className="rounded-full border border-white/[0.08] px-3 py-1.5">Hosted by {event.organizer}</span>}
                   </div>
-                  {upcomingEvents.length > 1 && (
-                    <div className="flex items-center gap-2" aria-label="Event carousel controls">
-                      <button aria-label="Previous event" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50 hover:bg-[#d9af57]/[0.08]" onClick={() => moveEvent(-1)} type="button">←</button>
-                      <span className="min-w-12 text-center text-xs tabular-nums text-[#a99b7e]" aria-live="polite">{activeEventIndex + 1} / {upcomingEvents.length}</span>
-                      <button aria-label="Next event" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50 hover:bg-[#d9af57]/[0.08]" onClick={() => moveEvent(1)} type="button">→</button>
-                    </div>
-                  )}
+                  <div className="mt-5 flex flex-wrap gap-3 border-t border-white/[0.07] pt-4">
+                    <Link className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#d9af57] px-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#15130e] transition hover:bg-[#f2d98b]" href={`/dashboard/artist/register?event=${encodeURIComponent(event.id)}`}>
+                      Register for this event
+                    </Link>
+                    <Link className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/[0.12] px-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4d9bc] transition hover:border-[#d9af57]/45 hover:text-white" href={`/events/${event.id}`}>
+                      Full event details
+                    </Link>
+                  </div>
                 </div>
-              </div>
-              <div className="p-5 sm:p-7">
-                <p className="max-w-3xl text-sm leading-7 text-[#c9bea2]">{activeEvent.description}</p>
-                <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#d2b46a]">
-                  <span className="rounded-full border border-[#d9af57]/20 px-3 py-1.5">
-                    {activeEvent.price === 0
-                      ? "Free entry"
-                      : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(activeEvent.price)}
-                  </span>
-                  {activeEvent.capacity !== null && <span className="rounded-full border border-white/[0.08] px-3 py-1.5">{activeEvent.capacity} seats</span>}
-                  {activeEvent.organizer && <span className="rounded-full border border-white/[0.08] px-3 py-1.5">Hosted by {activeEvent.organizer}</span>}
-                </div>
-                <div className="mt-6 flex flex-wrap gap-3 border-t border-white/[0.07] pt-5">
-                  <Link className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#d9af57] px-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#15130e] transition hover:bg-[#f2d98b]" href={`/dashboard/artist/register?event=${encodeURIComponent(activeEvent.id)}`}>
-                    Register for this event
-                  </Link>
-                  <Link className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/[0.12] px-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#e4d9bc] transition hover:border-[#d9af57]/45 hover:text-white" href={`/events/${activeEvent.id}`}>
-                    Full event details
-                  </Link>
-                </div>
-              </div>
-            </article>
+              </article>
+            ))}
           </div>
-        ) : null}
+        )}
       </section>
       <div className="mb-5">
         <p className="text-[9px] uppercase tracking-[0.2em] text-[#a79a7d]">Your event history</p>

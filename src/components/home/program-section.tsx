@@ -3,16 +3,16 @@ import Link from "next/link";
 
 type ProgramSectionProps = {
   programs: ProgramCard[];
-  eyebrow?: string;
-  heading?: string;
+  eyebrow: string;
+  heading: string;
   exploreLabel: string;
   emptyMessage: string;
 };
 
 export function ProgramSection({
   programs,
-  eyebrow = "Programs & verticals",
-  heading = "Spaces shaped for discovery, learning, and performance.",
+  eyebrow,
+  heading,
   exploreLabel,
   emptyMessage,
 }: ProgramSectionProps) {

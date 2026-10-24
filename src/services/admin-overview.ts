@@ -35,6 +35,13 @@ export type EventCommitment = {
   paymentMethod: "razorpay" | "at-event" | "free" | "legacy";
 };
 
+export type PendingFeatureRequest = {
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  requestedAt: string | null;
+};
+
 export type AdminUserSummary = {
   name: string;
   email: string;
@@ -54,6 +61,8 @@ export type AdminOverviewData = {
   userCount: number;
   adminCount: number;
   artistCount: number;
+  pendingFeatureRequestCount: number;
+  pendingFeatureRequests: PendingFeatureRequest[];
   eventCount: number;
   upcomingEventCount: number;
   todayRegistrationCount: number;
@@ -80,6 +89,8 @@ type UserDocument = {
   bio?: string;
   skillIds?: string[];
   photoFileId?: string | null;
+  featuredStatus?: "not-requested" | "requested" | "featured";
+  updatedAt?: Date;
 };
 
 type EventDocument = {
@@ -141,6 +152,8 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     userCount,
     adminCount,
     artistCount,
+    pendingFeatureRequestCount,
+    pendingFeatureRequests,
     eventCount,
     upcomingEventCount,
     recentEvents,
@@ -152,6 +165,13 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false } }),
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false }, role: "admin" }),
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false }, role: "artist" }),
+    users.countDocuments({ role: "artist", featuredStatus: "requested" }),
+    users
+      .find({ role: "artist", featuredStatus: "requested", email: { $type: "string" } })
+      .project<UserDocument>({ name: 1, email: 1, emailNormalized: 1, emailVerified: 1, updatedAt: 1 })
+      .sort({ updatedAt: -1, name: 1 })
+      .limit(6)
+      .toArray(),
     events.countDocuments({}),
     events.countDocuments({ status: "published", startsAt: { $gte: today } }),
     events
@@ -237,6 +257,13 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     userCount,
     adminCount,
     artistCount,
+    pendingFeatureRequestCount,
+    pendingFeatureRequests: pendingFeatureRequests.map((artist) => ({
+      name: artist.name?.trim() || "Artist",
+      email: (artist.emailNormalized || artist.email || "").trim().toLowerCase(),
+      emailVerified: artist.emailVerified !== false,
+      requestedAt: artist.updatedAt instanceof Date ? artist.updatedAt.toISOString() : null,
+    })),
     eventCount,
     upcomingEventCount,
     todayRegistrationCount: todayRegistrations.length,

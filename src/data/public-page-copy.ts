@@ -121,6 +121,43 @@ export type PublicPageCopy = {
     eyebrow: string;
     heading: string;
     description: string;
+    nameLabel: string;
+    organizationLabel: string;
+    emailLabel: string;
+    phoneLabel: string;
+    optionalLabel: string;
+    interestLabel: string;
+    interestPlaceholder: string;
+    proposalLabel: string;
+    submitLabel: string;
+    submittingLabel: string;
+    successMessage: string;
+  };
+  reservePage: {
+    eyebrow: string;
+    heading: string;
+    description: string;
+    noEventsLead: string;
+    eventsLinkLabel: string;
+    noEventsTail: string;
+  };
+  registrationForm: {
+    registeringAsLabel: string;
+    chooseEventLabel: string;
+    selectEventLabel: string;
+    skillsHeading: string;
+    skillsDescription: string;
+    loadingSkillsLabel: string;
+    paymentOptionLabel: string;
+    payOnlineLabel: string;
+    onlineDescription: string;
+    payAtEventLabel: string;
+    atEventDescription: string;
+    freeEventMessage: string;
+    phoneNote: string;
+    processingLabel: string;
+    payAndRegisterLabel: string;
+    registerLabel: string;
   };
   artistDetail: {
     backToArtists: string;
@@ -325,6 +362,45 @@ export const defaultPublicPageCopy: PublicPageCopy = {
     heading: "Let’s create something meaningful.",
     description:
       "Tell us a little about your organization and the partnership you have in mind. Our team will follow up using the contact details you provide.",
+    nameLabel: "Your name",
+    organizationLabel: "Organization",
+    emailLabel: "Email",
+    phoneLabel: "Phone",
+    optionalLabel: "(optional)",
+    interestLabel: "Partnership interest",
+    interestPlaceholder: "Sponsorship, venue partnership, community collaboration...",
+    proposalLabel: "Tell us about your proposal",
+    submitLabel: "Send partnership inquiry",
+    submittingLabel: "Sending...",
+    successMessage: "Thank you. Your partnership inquiry has been sent.",
+  },
+  reservePage: {
+    eyebrow: "Event registration",
+    heading: "Save your seat",
+    description:
+      "Choose a published gathering and register your details. Your registration will be shared with the event team and saved to your artist dashboard.",
+    noEventsLead: "There are no upcoming events available for registration right now. Please check the",
+    eventsLinkLabel: "events page",
+    noEventsTail: "again soon.",
+  },
+  registrationForm: {
+    registeringAsLabel: "Registering as",
+    chooseEventLabel: "Choose an event",
+    selectEventLabel: "Select an event",
+    skillsHeading: "What would you like to perform?",
+    skillsDescription:
+      "Select the skills you plan to perform. Your profile skills are preselected; events with requirements need at least one required skill saved on your profile.",
+    loadingSkillsLabel: "Loading performance skills...",
+    paymentOptionLabel: "Payment option",
+    payOnlineLabel: "Pay online now",
+    onlineDescription: "Secure Razorpay checkout with credit and debit cards.",
+    payAtEventLabel: "Pay at the event",
+    atEventDescription: "Reserve your place and pay the event team on arrival.",
+    freeEventMessage: "This event is free. No payment is required.",
+    phoneNote: "A phone number is optional. You can add your contact details and performance skills to your profile at any time.",
+    processingLabel: "Processing...",
+    payAndRegisterLabel: "Pay & register",
+    registerLabel: "Register for event",
   },
   artistDetail: {
     backToArtists: "← All featured artists",

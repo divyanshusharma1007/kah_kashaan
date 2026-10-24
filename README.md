@@ -14,6 +14,8 @@ pnpm dev
 bun dev
 ```
 
+The development command loads server settings from `.env.develop`. Copy `.env.example` to `.env.develop` and fill in the required values before starting the app.
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
@@ -48,7 +50,7 @@ Artist profile photos are uploaded privately to ImageKit first and fall back to 
 
 ### Email verification configuration
 
-In development (`NODE_ENV=development`), email/password signup writes the verification link to the server console instead of sending an email. Open that link to verify the account; `APP_URL` can point to the local app and defaults to `http://localhost:3000`. Outside development, verification messages are sent through the Resend API. Configure `APP_URL` as the absolute public site URL (HTTPS outside localhost), `RESEND_API_KEY` with a Resend API key, and `EMAIL_FROM` with a sender address authorized for your Resend account. Pending users can submit the signup form again to resend the link (once per minute). Do not enable password signup in a deployed environment until these mail settings and the sender domain are configured.
+Password signups send email-verification messages through Gmail SMTP using Nodemailer in development and production. Set `SMTP_USER` to the Gmail account that sends the messages and `SMTP_APP_PASSWORD` to an App Password generated for that account. Do not use the account's normal Gmail password. The verification link uses `APP_URL` when configured; otherwise, the app origin is derived from `GOOGLE_REDIRECT_URI` by dropping its callback path. Keep the App Password server-side and never use a `NEXT_PUBLIC_` variable. Pending users can submit the signup form again to resend the link (once per minute). Configure these settings in the server environment before enabling password signup in production.
 
 ## Learn More
 

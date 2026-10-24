@@ -5,7 +5,7 @@ import {
   listArtistDirectory,
   promoteArtistAccountToAdmin,
   revokeAdminAccount,
-  setArtistFeaturedStatus,
+  setArtistFeatureDecision,
   updateArtistAccountStatus,
 } from "@/services/artist-directory";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/services/auth-session";
@@ -64,13 +64,16 @@ export async function PATCH(request: NextRequest) {
   const role = "role" in body ? body.role : undefined;
   const isActive = "isActive" in body ? body.isActive : undefined;
   const featured = "featured" in body ? body.featured : undefined;
+  const featureDecision = "featureDecision" in body ? body.featureDecision : undefined;
   if (
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     (role !== undefined && role !== "admin" && role !== "artist") ||
-    (typeof isActive !== "boolean" && role === undefined && typeof featured !== "boolean") ||
+    (featureDecision !== undefined && featureDecision !== "approve" && featureDecision !== "reject") ||
+    (typeof isActive !== "boolean" && role === undefined && typeof featured !== "boolean" && featureDecision === undefined) ||
     (typeof isActive === "boolean" && (role !== undefined || featured !== undefined)) ||
-    (role !== undefined && (isActive !== undefined || featured !== undefined)) ||
-    (typeof featured === "boolean" && (role !== undefined || isActive !== undefined))
+    (role !== undefined && (isActive !== undefined || featured !== undefined || featureDecision !== undefined)) ||
+    (typeof featured === "boolean" && (role !== undefined || isActive !== undefined || featureDecision !== undefined)) ||
+    (featureDecision !== undefined && (role !== undefined || isActive !== undefined || featured !== undefined))
   ) {
     return NextResponse.json(
       { error: "Choose an artist and provide a valid account update." },
@@ -84,8 +87,10 @@ export async function PATCH(request: NextRequest) {
       ? await promoteArtistAccountToAdmin(email)
       : role === "artist"
         ? await revokeAdminAccount(email, user?.email ?? "")
-        : typeof featured === "boolean"
-          ? await setArtistFeaturedStatus(email, featured)
+        : featureDecision === "approve" || featureDecision === "reject"
+          ? await setArtistFeatureDecision(email, featureDecision)
+          : typeof featured === "boolean"
+            ? await setArtistFeatureDecision(email, featured ? "approve" : "remove")
           : await updateArtistAccountStatus(email, isActive === true);
     if (updated === "last-admin") {
       return NextResponse.json(
@@ -105,6 +110,12 @@ export async function PATCH(request: NextRequest) {
         { status: 409, headers: { "Cache-Control": "no-store" } },
       );
     }
+    if (updated === false && (featureDecision === "approve" || featured === true)) {
+      return NextResponse.json(
+        { error: "This artist account could not be found or its email is not verified." },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     if (updated === null) {
       return NextResponse.json(
         { error: "The artist directory is temporarily unavailable." },
@@ -120,6 +131,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       role !== undefined
         ? { success: true, role }
+        : featureDecision !== undefined
+          ? { success: true, featureDecision }
         : typeof featured === "boolean"
           ? { success: true, featured }
           : { success: true, isActive },

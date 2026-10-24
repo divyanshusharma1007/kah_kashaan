@@ -31,15 +31,11 @@ function isFeaturedArtist(value: unknown): value is FeaturedArtist {
 export function FeaturedArtists({
   preview = false,
   copy,
-  content = {
-    eyebrow: "The Kah-Kashaan community",
-    heading: preview ? "Meet our featured artists" : "Featured artists",
-    description: "Meet the artists whose profiles have been selected to feature in our community.",
-  },
+  content,
 }: {
   preview?: boolean;
   copy: PublicPageCopy["artistsPage"];
-  content?: { eyebrow: string; heading: string; description: string };
+  content: { eyebrow: string; heading: string; description: string };
 }) {
   const [artists, setArtists] = useState<FeaturedArtist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,7 +173,7 @@ export function FeaturedArtists({
             className="text-xs text-[#d2b46a] underline underline-offset-4 transition hover:text-[#fff5d9]"
             href="/artists"
           >
-            Explore all {artists.length} featured artists
+            {copy.viewAll}
           </Link>
         </div>
       )}

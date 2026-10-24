@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type {
   AdminOverviewData,
   EventCommitment,
+  PendingFeatureRequest,
   RecentEvent,
   RecentRegistration,
 } from "@/services/admin-overview";
@@ -58,6 +59,15 @@ function isEventCommitment(value: unknown): value is EventCommitment {
       commitment.paymentMethod === "legacy");
 }
 
+function isPendingFeatureRequest(value: unknown): value is PendingFeatureRequest {
+  if (!value || typeof value !== "object") return false;
+  const request = value as Partial<PendingFeatureRequest>;
+  return typeof request.name === "string" &&
+    typeof request.email === "string" &&
+    typeof request.emailVerified === "boolean" &&
+    (typeof request.requestedAt === "string" || request.requestedAt === null);
+}
+
 function isOverview(value: unknown): value is AdminOverviewData {
   if (!value || typeof value !== "object") return false;
   const overview = value as Partial<AdminOverviewData>;
@@ -65,6 +75,7 @@ function isOverview(value: unknown): value is AdminOverviewData {
     overview.userCount,
     overview.adminCount,
     overview.artistCount,
+    overview.pendingFeatureRequestCount,
     overview.eventCount,
     overview.upcomingEventCount,
     overview.todayRegistrationCount,
@@ -78,7 +89,9 @@ function isOverview(value: unknown): value is AdminOverviewData {
     Array.isArray(overview.recentRegistrations) &&
     overview.recentRegistrations.every(isRecentRegistration) &&
     Array.isArray(overview.eventCommitments) &&
-    overview.eventCommitments.every(isEventCommitment);
+    overview.eventCommitments.every(isEventCommitment) &&
+    Array.isArray(overview.pendingFeatureRequests) &&
+    overview.pendingFeatureRequests.every(isPendingFeatureRequest);
 }
 
 async function fetchOverview(): Promise<AdminOverviewData> {
@@ -214,6 +227,15 @@ export function AdminOverview() {
       border: "border-fuchsia-300/15",
     },
     {
+      label: "Feature requests",
+      value: overview?.pendingFeatureRequestCount,
+      note: "Awaiting review",
+      href: "/dashboard/artists?feature=requested",
+      icon: "★",
+      accent: "text-amber-200",
+      border: "border-amber-300/20",
+    },
+    {
       label: "Events",
       value: overview?.eventCount,
       note: `${overview?.upcomingEventCount ?? 0} upcoming`,
@@ -254,7 +276,7 @@ export function AdminOverview() {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-7">
         {statistics.map((stat) => (
           <Link
             aria-label={`${stat.label}: ${loading ? "loading" : stat.value}. ${stat.note}`}
@@ -275,6 +297,59 @@ export function AdminOverview() {
           </Link>
         ))}
       </div>
+
+      <section className="mt-3 rounded-xl border border-[#d9af57]/20 bg-[#10100f] p-3 sm:p-4" aria-labelledby="feature-requests-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#d9af57]">Artist review</p>
+            <h2 className="mt-1 text-sm font-medium text-[#f0e6ce]" id="feature-requests-heading">
+              Requests to be featured
+              <span className="ml-2 text-[#d9af57]">({overview?.pendingFeatureRequestCount ?? 0})</span>
+            </h2>
+          </div>
+          <Link
+            className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#f0ddab] underline underline-offset-4 hover:text-[#fff5d9]"
+            href="/dashboard/artists?feature=requested"
+          >
+            Review all
+          </Link>
+        </div>
+        {loading ? (
+          <p className="mt-3 text-xs text-[#827864]" role="status">Loading feature requests...</p>
+        ) : overview?.pendingFeatureRequestCount === 0 ? (
+          <p className="mt-3 rounded-lg border border-white/[0.06] bg-black/15 px-3 py-3 text-xs text-[#827864]">
+            There are no feature requests waiting for review.
+          </p>
+        ) : (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {(overview?.pendingFeatureRequests ?? []).map((request) => (
+              <li key={request.email}>
+                <Link
+                  className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-black/15 px-3 py-2.5 transition hover:border-[#d9af57]/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9af57]"
+                  href={`/dashboard/artists?feature=requested&email=${encodeURIComponent(request.email)}`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-[#f0e6ce]">{request.name}</p>
+                    <p className="mt-1 truncate text-[10px] text-[#827864]">{request.email}</p>
+                    {request.requestedAt && (
+                      <time className="mt-1 block text-[9px] text-[#716954]" dateTime={request.requestedAt}>
+                        Requested {formatDate(request.requestedAt)}
+                      </time>
+                    )}
+                  </div>
+                  {!request.emailVerified ? (
+                    <span className="shrink-0 rounded-full bg-amber-950/40 px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-amber-200">
+                      Verify email
+                    </span>
+                  ) : (
+                    <span aria-hidden="true" className="shrink-0 text-xs text-[#d9af57]">→</span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <p className="mt-1 text-[9px] leading-4 text-[#716954]">
         Account totals exclude accounts awaiting email verification. Online activity is not tracked. Income figures are estimates from registrations and listed ticket prices; payments are not verified.

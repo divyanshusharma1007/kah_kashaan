@@ -98,6 +98,23 @@ function matchesPublicPageCopy(value: unknown, template: unknown): value is Publ
   );
 }
 
+function mergePublicPageDefaults(value: unknown, template: unknown): unknown {
+  if (typeof template === "string") return typeof value === "string" ? value : template;
+  if (Array.isArray(template)) {
+    if (!Array.isArray(value)) return template;
+    if (template.length === 0) return value;
+    return value.slice(0, 30).map((item) => mergePublicPageDefaults(item, template[0]));
+  }
+  if (isRecord(template)) {
+    const source = isRecord(value) ? value : {};
+    return Object.fromEntries(Object.entries(template).map(([key, child]) => [
+      key,
+      mergePublicPageDefaults(source[key], child),
+    ]));
+  }
+  return value ?? template;
+}
+
 export function parseHeroContent(value: unknown):
   | { success: true; data: HeroContent }
   | { success: false; error: string } {
@@ -240,6 +257,7 @@ export function parseHeroContent(value: unknown):
 
 function normalizeDocument(document: HomepageContentDocument | null): HeroContent {
   if (!document) return defaultHeroContent;
+  const publicPages = mergePublicPageDefaults(document.publicPages, defaultPublicPageCopy);
   return {
     headline: isText(document.headline, 240) ? document.headline : defaultHeroContent.headline,
     description: isText(document.description, 1200) ? document.description : defaultHeroContent.description,
@@ -291,8 +309,8 @@ function normalizeDocument(document: HomepageContentDocument | null): HeroConten
     footerVisibility: isFooterVisibility(document.footerVisibility)
       ? document.footerVisibility
       : defaultHeroContent.footerVisibility,
-    publicPages: matchesPublicPageCopy(document.publicPages, defaultPublicPageCopy)
-      ? document.publicPages
+    publicPages: matchesPublicPageCopy(publicPages, defaultPublicPageCopy)
+      ? publicPages
       : defaultPublicPageCopy,
   };
 }

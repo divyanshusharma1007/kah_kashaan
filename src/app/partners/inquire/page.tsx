@@ -22,7 +22,7 @@ export default async function SponsorInquiryPage() {
             {copy.description}
           </p>
         </header>
-        <SponsorInquiryForm />
+        <SponsorInquiryForm copy={copy} />
       </section>
     </SiteLayout>
   );

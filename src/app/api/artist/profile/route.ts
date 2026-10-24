@@ -58,6 +58,20 @@ export async function PUT(request: NextRequest) {
           value.skillIds.every((id) => typeof id === "string" && /^[\da-f]{24}$/i.test(id))
         ? [...new Set(value.skillIds.map((id) => (id as string).toLowerCase()))]
         : [],
+      links: Array.isArray(value.links)
+        ? value.links.flatMap((entry) => {
+          if (!entry || typeof entry !== "object") return [];
+          const link = entry as Record<string, unknown>;
+          if (
+            typeof link.label !== "string" ||
+            typeof link.url !== "string" ||
+            (link.type !== "book" && link.type !== "social" && link.type !== "website")
+          ) {
+            return [];
+          }
+          return [{ label: link.label.trim(), url: link.url.trim(), type: link.type }];
+        })
+        : [],
     };
     if (profile.phone.length > 0 && (profile.phone.length < 5 || profile.phone.length > 40)) {
       return jsonResponse({ error: "Phone number must be between 5 and 40 characters, or left empty." }, 400);
@@ -74,6 +88,22 @@ export async function PUT(request: NextRequest) {
     if (!Array.isArray(value.skillIds) ||
         !value.skillIds.every((id) => typeof id === "string" && /^[\da-f]{24}$/i.test(id))) {
       return jsonResponse({ error: "Select valid performance skills." }, 400);
+    }
+    if (!Array.isArray(value.links) || value.links.length > 20 ||
+        profile.links.length !== value.links.length) {
+      return jsonResponse({ error: "Add up to 20 links with a name, valid URL, and link type." }, 400);
+    }
+    for (const link of profile.links) {
+      let url: URL;
+      try {
+        url = new URL(link.url);
+      } catch {
+        return jsonResponse({ error: `Enter a valid URL for "${link.label || "link"}".` }, 400);
+      }
+      if (!link.label || link.label.length > 60 || link.url.length > 2048 ||
+          url.protocol !== "https:" || url.username || url.password) {
+        return jsonResponse({ error: "Links need a name under 60 characters and a secure HTTPS URL." }, 400);
+      }
     }
 
     const skills = await getArtistSkillsByIds(profile.skillIds);

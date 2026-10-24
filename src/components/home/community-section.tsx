@@ -2,17 +2,12 @@ import type { CommunityMetric } from "@/data/home-page-data";
 
 type CommunitySectionProps = {
   metrics: CommunityMetric[];
-  eyebrow?: string;
-  heading?: string;
-  description?: string;
+  eyebrow: string;
+  heading: string;
+  description: string;
 };
 
-export function CommunitySection({
-  metrics,
-  eyebrow = "Why join us",
-  heading = "A community of listeners, learners, and storytellers.",
-  description = "Kah-Kashaan is built for artists, audiences, and curious minds who want to stay close to literature, performance, and cultural conversations that matter.",
-}: CommunitySectionProps) {
+export function CommunitySection({ metrics, eyebrow, heading, description }: CommunitySectionProps) {
   return (
     <section id="community" className="py-14">
       <div className="rounded-[1.5rem] border border-[#d9af57]/20 bg-[radial-gradient(circle_at_top,_rgba(217,175,87,0.08),_transparent_35%),#101010] p-5 sm:rounded-[2rem] sm:p-8">
