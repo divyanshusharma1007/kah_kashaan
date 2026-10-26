@@ -134,7 +134,8 @@ export function AdminSponsorsDashboard() {
           typeof result.logoUrl !== "string") {
         throw new Error("The logo upload returned an invalid response.");
       }
-      setForm((current) => ({ ...current, logoUrl: result.logoUrl }));
+      const logoUrl = result.logoUrl;
+      setForm((current) => ({ ...current, logoUrl }));
     } catch (cause) {
       console.error("Could not upload the sponsor logo.", cause);
       setError(cause instanceof Error ? cause.message : "Could not upload the sponsor logo.");
