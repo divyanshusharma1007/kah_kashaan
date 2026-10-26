@@ -11,6 +11,8 @@ export type EventInput = {
   description: string;
   type: string;
   startsAt: string;
+  dates: string[];
+  posterUrl: string;
   location: string;
   city: string;
   price: number;
@@ -27,8 +29,10 @@ export type ManagedEvent = EventInput & {
   updatedAt: string;
 };
 
-type EventDocument = Omit<EventInput, "startsAt" | "skillIds" | "city" | "sponsorIds"> & {
+type EventDocument = Omit<EventInput, "startsAt" | "dates" | "posterUrl" | "skillIds" | "city" | "sponsorIds"> & {
   startsAt: Date;
+  dates?: Date[];
+  posterUrl?: string;
   createdAt: Date;
   updatedAt: Date;
   city?: string;
@@ -85,12 +89,15 @@ function formatIndiaCalendarDate(date: Date): string {
 }
 
 function serializeEvent(event: WithId<EventDocument>): ManagedEvent {
+  const dates = event.dates?.length ? event.dates : [event.startsAt];
   return {
     id: event._id.toHexString(),
     title: event.title,
     description: event.description,
     type: event.type,
     startsAt: event.startsAt.toISOString(),
+    dates: dates.map((date) => date.toISOString()),
+    posterUrl: event.posterUrl ?? "",
     location: event.location,
     city: event.city ?? "",
     price: event.price,
@@ -115,7 +122,10 @@ export function parseEventInput(value: unknown):
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
   const type = typeof body.type === "string" ? body.type.trim() : "";
-  const startsAt = typeof body.startsAt === "string" ? body.startsAt : "";
+  const rawDates = body.dates === undefined
+    ? [body.startsAt]
+    : body.dates;
+  const posterUrl = typeof body.posterUrl === "string" ? body.posterUrl.trim() : "";
   const location = typeof body.location === "string" ? body.location.trim() : "";
   const city = typeof body.city === "string" ? body.city.trim() : "";
   const organizer = typeof body.organizer === "string" ? body.organizer.trim() : "";
@@ -134,12 +144,45 @@ export function parseEventInput(value: unknown):
   if (!type || type.length > 60) {
     return { success: false, error: "Enter an event type of up to 60 characters." };
   }
-  const eventDate = new Date(startsAt);
-  if (!startsAt || !Number.isFinite(eventDate.getTime())) {
-    return { success: false, error: "Enter a valid event date and time." };
+  if (!Array.isArray(rawDates) || rawDates.length < 1 || rawDates.length > 20) {
+    return { success: false, error: "Add between 1 and 20 event dates." };
   }
-  if (formatIndiaCalendarDate(eventDate) < formatIndiaCalendarDate(new Date())) {
-    return { success: false, error: "Event date cannot be before today." };
+  const dates: Date[] = [];
+  for (const value of rawDates) {
+    if (typeof value !== "string" || !value) {
+      return { success: false, error: "Enter a valid event date and time for each date." };
+    }
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) {
+      return { success: false, error: "Enter a valid event date and time for each date." };
+    }
+    if (formatIndiaCalendarDate(date) < formatIndiaCalendarDate(new Date())) {
+      return { success: false, error: "Event dates cannot be before today." };
+    }
+    dates.push(date);
+  }
+  dates.sort((left, right) => left.getTime() - right.getTime());
+  if (new Set(dates.map((date) => date.getTime())).size !== dates.length) {
+    return { success: false, error: "Remove duplicate event dates and times." };
+  }
+  if (posterUrl.length > 500) {
+    return { success: false, error: "The event poster URL is invalid." };
+  }
+  if (posterUrl) {
+    try {
+      const poster = new URL(posterUrl, "https://kah-kashaan.local");
+      const reference = poster.searchParams.get("reference");
+      if (
+        poster.origin !== "https://kah-kashaan.local" ||
+        poster.pathname !== "/api/events/poster" ||
+        !reference ||
+        (!reference.startsWith("imagekit:") && !reference.startsWith("cloudinary:"))
+      ) {
+        return { success: false, error: "Upload a valid event poster." };
+      }
+    } catch {
+      return { success: false, error: "Upload a valid event poster." };
+    }
   }
   if (!location || location.length > 240) {
     return { success: false, error: "Enter an event location of up to 240 characters." };
@@ -183,7 +226,9 @@ export function parseEventInput(value: unknown):
       title,
       description,
       type,
-      startsAt: new Date(startsAt).toISOString(),
+      startsAt: dates[0].toISOString(),
+      dates: dates.map((date) => date.toISOString()),
+      posterUrl,
       location,
       city,
       price,
@@ -216,21 +261,33 @@ export async function listUpcomingPublishedEvents(): Promise<ManagedEvent[] | nu
   const client = await getMongoClient();
   if (!client) return null;
 
+  const now = new Date();
   const events = await getEventCollection(client)
-    .find({ status: "published", startsAt: { $gte: new Date() } })
-    .sort({ startsAt: 1 })
+    .find({
+      status: "published",
+      $or: [
+        { startsAt: { $gte: now } },
+        { dates: { $elemMatch: { $gte: now } } },
+      ],
+    })
     .toArray();
-  return events.map(serializeEvent);
+  return events
+    .map(serializeEvent)
+    .sort((left, right) => getNextUpcomingEventDate(left, now).getTime() - getNextUpcomingEventDate(right, now).getTime());
 }
 
 export async function getUpcomingPublishedEvent(id: string): Promise<ManagedEvent | null | undefined> {
   const client = await getMongoClient();
   if (!client) return null;
 
+  const now = new Date();
   const event = await getEventCollection(client).findOne({
     _id: new ObjectId(id),
     status: "published",
-    startsAt: { $gte: new Date() },
+    $or: [
+      { startsAt: { $gte: now } },
+      { dates: { $elemMatch: { $gte: now } } },
+    ],
   });
   return event ? serializeEvent(event) : undefined;
 }
@@ -245,8 +302,20 @@ export async function createEvent(input: EventInput): Promise<ManagedEvent | nul
 
   const now = new Date();
   const document: EventDocument = {
-    ...input,
     startsAt: new Date(input.startsAt),
+    dates: input.dates.map((date) => new Date(date)),
+    posterUrl: input.posterUrl,
+    title: input.title,
+    description: input.description,
+    type: input.type,
+    location: input.location,
+    city: input.city,
+    price: input.price,
+    capacity: input.capacity,
+    organizer: input.organizer,
+    status: input.status,
+    skillIds: input.skillIds,
+    sponsorIds: input.sponsorIds,
     createdAt: now,
     updatedAt: now,
   };
@@ -265,7 +334,14 @@ export async function updateEvent(
   const objectId = new ObjectId(id);
   const result = await collection.updateOne(
     { _id: objectId },
-    { $set: { ...input, startsAt: new Date(input.startsAt), updatedAt: new Date() } },
+    {
+      $set: {
+        ...input,
+        startsAt: new Date(input.startsAt),
+        dates: input.dates.map((date) => new Date(date)),
+        updatedAt: new Date(),
+      },
+    },
   );
   if (result.matchedCount === 0) return undefined;
 
@@ -389,6 +465,14 @@ export async function setEventRegistrationPerformance(
       { collation: { locale: "en", strength: 2 } },
     );
   return result.matchedCount > 0;
+}
+
+export function getNextUpcomingEventDate(event: ManagedEvent, now = new Date()): Date {
+  const upcomingDate = event.dates
+    .map((date) => new Date(date))
+    .filter((date) => date.getTime() >= now.getTime())
+    .sort((left, right) => left.getTime() - right.getTime())[0];
+  return upcomingDate ?? new Date(event.startsAt);
 }
 
 export function isValidEventId(id: string): boolean {

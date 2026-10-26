@@ -30,6 +30,8 @@ export type EventItem = {
   venue: string;
   city?: string;
   startsAt?: string;
+  dates?: string[];
+  posterUrl?: string;
   description?: string;
   price?: number;
   capacity?: number | null;

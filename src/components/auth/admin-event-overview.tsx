@@ -23,6 +23,8 @@ function isEventOverview(value: unknown): value is EventOverview {
       typeof overview.event === "object" &&
       typeof overview.event.id === "string" &&
       typeof overview.event.title === "string" &&
+      Array.isArray(overview.event.dates) &&
+      overview.event.dates.every((date) => typeof date === "string") &&
       Array.isArray(overview.skills) &&
       overview.skills.every((skill) => skill && typeof skill.id === "string" && typeof skill.name === "string") &&
       Array.isArray(overview.sponsors) &&
@@ -168,17 +170,17 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">
-                  Event overview · {getEventLifecycleStatus(overview.event.status, overview.event.startsAt, new Date(currentTime)) === "completed"
+                  Event overview · {getEventLifecycleStatus(overview.event.status, overview.event.dates, new Date(currentTime)) === "completed"
                     ? "Done"
                     : overview.event.status}
                 </p>
                 <h1 className="mt-2 font-[var(--font-display)] text-3xl text-[#fff5d9] sm:text-4xl">{overview.event.title}</h1>
                 <p className="mt-2 text-sm text-[#a99b7e]">
-                  {new Intl.DateTimeFormat("en-IN", {
-                    dateStyle: "full",
+                  {overview.event.dates.map((date) => new Intl.DateTimeFormat("en-IN", {
+                    dateStyle: "medium",
                     timeStyle: "short",
                     timeZone: "Asia/Kolkata",
-                  }).format(new Date(overview.event.startsAt))} · {overview.event.location}
+                  }).format(new Date(date))).join(" · ")} · {overview.event.location}
                   {overview.event.city ? `, ${overview.event.city}` : ""}
                 </p>
               </div>

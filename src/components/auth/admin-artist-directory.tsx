@@ -369,6 +369,7 @@ export function AdminArtistDirectory() {
                       alt=""
                       className="h-11 w-11 shrink-0 rounded-xl border border-[#d9af57]/20 object-cover"
                       height={44}
+                      loading="lazy"
                       src={`/api/admin/artists/photo?email=${encodeURIComponent(artist.email)}`}
                       unoptimized
                       width={44}

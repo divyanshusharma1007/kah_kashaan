@@ -1,6 +1,6 @@
 import type { EventItem } from "@/data/home-page-data";
 import { defaultPublicPageCopy, type PublicPageCopy } from "@/data/public-page-copy";
-import { listUpcomingPublishedEvents } from "@/services/events";
+import { getNextUpcomingEventDate, listUpcomingPublishedEvents } from "@/services/events";
 
 type FeaturedEvent = {
   title: string;
@@ -19,7 +19,7 @@ export async function getPublicEventData(
   }
 
   const upcomingEvents = events.map((event) => {
-    const startsAt = new Date(event.startsAt);
+    const startsAt = getNextUpcomingEventDate(event);
     return {
       id: event.id,
       date: new Intl.DateTimeFormat("en-IN", {
@@ -31,7 +31,9 @@ export async function getPublicEventData(
       type: event.type,
       venue: event.location,
       city: event.city,
-      startsAt: event.startsAt,
+      startsAt: startsAt.toISOString(),
+      dates: event.dates,
+      posterUrl: event.posterUrl,
       description: event.description,
       price: event.price,
       capacity: event.capacity,
@@ -40,6 +42,7 @@ export async function getPublicEventData(
     };
   });
   const firstEvent = events[0];
+  const firstEventDate = firstEvent ? getNextUpcomingEventDate(firstEvent) : null;
 
   return {
     upcomingEvents,
@@ -50,7 +53,7 @@ export async function getPublicEventData(
             dateStyle: "full",
             timeStyle: "short",
             timeZone: "Asia/Kolkata",
-          }).format(new Date(firstEvent.startsAt)),
+          }).format(firstEventDate!),
           audience: firstEvent.price === 0
             ? "Free entry"
             : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(firstEvent.price),

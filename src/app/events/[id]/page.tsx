@@ -26,11 +26,12 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
 
   const { navItems, logo, heroContent } = await getHomePageData();
   const copy = heroContent.publicPages.eventDetail;
-  const startsAt = new Intl.DateTimeFormat("en-IN", {
+  const eventDates = event.dates.length ? event.dates : [event.startsAt];
+  const formattedEventDates = eventDates.map((date) => new Intl.DateTimeFormat("en-IN", {
     dateStyle: "full",
     timeStyle: "short",
     timeZone: "Asia/Kolkata",
-  }).format(new Date(event.startsAt));
+  }).format(new Date(date)));
   const price = event.price === 0
     ? copy.freeEntryLabel
     : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(event.price);
@@ -39,14 +40,34 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
     <SiteLayout navItems={navItems} logo={logo} content={heroContent}>
       <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <article className="rounded-[2rem] border border-[#d9af57]/20 bg-[#111111] p-6 sm:p-10">
+          {event.posterUrl && (
+            <Image
+              alt={`${event.title} event poster`}
+              className="mb-8 max-h-[32rem] w-full rounded-2xl border border-white/[0.08] object-contain sm:max-h-[40rem]"
+              height={1200}
+              preload
+              src={event.posterUrl}
+              unoptimized
+              width={900}
+            />
+          )}
           <p className="text-[10px] uppercase tracking-[0.3em] text-[#d9af57]">{event.type}</p>
           <h1 className="mt-4 break-words font-[var(--font-display)] text-4xl text-[#fff5d9] sm:text-6xl">{event.title}</h1>
           <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#d8c8a2]">
-            <span>{startsAt}</span>
             <span>{event.location}</span>
             {event.city && <span>{event.city}</span>}
             <span>{price}</span>
             {event.capacity !== null && <span>{event.capacity} {copy.seatsLabel}</span>}
+          </div>
+          <div className="mt-5">
+            <p className="text-xs font-medium text-[#cbbd9f]">Event dates</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {formattedEventDates.map((date) => (
+                <li className="rounded-full border border-[#d9af57]/20 bg-black/20 px-3 py-1.5 text-xs text-[#e6d6af]" key={date}>
+                  {date}
+                </li>
+              ))}
+            </ul>
           </div>
           {event.organizer && <p className="mt-4 text-xs text-[#a99b7e]">{copy.hostedByLabel} {event.organizer}</p>}
           {eventSkills.length > 0 && (
@@ -67,7 +88,7 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
               <div className="mt-3 flex flex-wrap gap-3">
                 {sponsors.map((sponsor) => (
                   <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2" key={sponsor.id}>
-                    {sponsor.logoUrl && <Image alt="" className="h-8 w-8 rounded-md bg-white object-contain p-1" height={32} src={sponsor.logoUrl} unoptimized width={32} />}
+                    {sponsor.logoUrl && <Image alt="" className="h-8 w-8 rounded-md bg-white object-contain p-1" height={32} loading="lazy" src={sponsor.logoUrl} unoptimized width={32} />}
                     <span className="text-xs text-[#e6d6af]">{sponsor.name}</span>
                   </div>
                 ))}

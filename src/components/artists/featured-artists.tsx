@@ -115,7 +115,7 @@ export function FeaturedArtists({
         </p>
       ) : (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleArtists.map((artist) => (
+          {visibleArtists.map((artist, index) => (
             <Link
               className="group relative overflow-hidden rounded-[1.6rem] border border-[#d9af57]/15 bg-[linear-gradient(180deg,#17140e,#10100f_65%)] shadow-[0_18px_50px_rgba(0,0,0,0.2)] transition duration-300 hover:-translate-y-1 hover:border-[#d9af57]/45 hover:shadow-[0_22px_55px_rgba(217,175,87,0.1)]"
               href={`/artists/${encodeURIComponent(artist.id)}`}
@@ -127,6 +127,8 @@ export function FeaturedArtists({
                     alt={`${artist.name}'s profile`}
                     className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
                     height={576}
+                    loading={preview || index > 0 ? "lazy" : "eager"}
+                    priority={!preview && index === 0}
                     src={`/api/artists/${encodeURIComponent(artist.id)}/photo`}
                     unoptimized
                     width={672}

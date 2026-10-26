@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/components/auth/auth-context";
+import { PageMotion } from "@/components/home/page-motion";
 import { Cormorant_Garamond, Great_Vibes } from "next/font/google";
 import "./globals.css";
 
@@ -29,7 +30,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${cormorant.variable} ${greatVibes.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black text-brand-text-primary">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PageMotion />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

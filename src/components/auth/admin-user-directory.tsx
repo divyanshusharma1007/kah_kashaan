@@ -163,7 +163,7 @@ export function AdminUserDirectory() {
                 type="button"
               >
                 {user.photoFileId ? (
-                  <Image alt="" className="h-10 w-10 shrink-0 rounded-full border border-[#d9af57]/20 object-cover" height={40} src={`/api/admin/artists/photo?email=${encodeURIComponent(user.email)}`} unoptimized width={40} />
+                  <Image alt="" className="h-10 w-10 shrink-0 rounded-full border border-[#d9af57]/20 object-cover" height={40} loading="lazy" src={`/api/admin/artists/photo?email=${encodeURIComponent(user.email)}`} unoptimized width={40} />
                 ) : (
                   <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#d9af57]/20 bg-[#d9af57]/[0.07] font-[var(--font-display)] text-lg text-[#edcf81]">
                     {user.name.trim().charAt(0).toUpperCase()}

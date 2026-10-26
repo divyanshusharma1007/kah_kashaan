@@ -91,6 +91,7 @@ export function AboutPageContent({
                     src={member.image}
                     alt={member.imageAlt}
                     fill
+                    loading="lazy"
                     unoptimized
                     sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
                     className="object-cover transition duration-700 group-hover:scale-105"

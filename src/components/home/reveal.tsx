@@ -38,7 +38,7 @@ export function Reveal({ children, className = "", delayMs = 0 }: RevealProps) {
     <div
       ref={elementRef}
       className={`scroll-reveal ${className}`}
-      style={{ transitionDelay: `${delayMs}ms` }}
+      style={{ animationDelay: `${delayMs}ms` }}
     >
       {children}
     </div>

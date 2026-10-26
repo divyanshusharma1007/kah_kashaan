@@ -75,7 +75,7 @@ export function SponsorsSection({
                     key={sponsor.id}
                   >
                     {sponsor.logoUrl ? (
-                      <Image alt={`${sponsor.name} logo`} className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1" height={40} src={sponsor.logoUrl} unoptimized width={40} />
+                      <Image alt={`${sponsor.name} logo`} className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1" height={40} loading="lazy" src={sponsor.logoUrl} unoptimized width={40} />
                     ) : (
                       <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[#d9af57]/25 font-[var(--font-display)] text-lg text-[#f5d99a]">
                         {sponsor.name.trim().charAt(0).toUpperCase()}

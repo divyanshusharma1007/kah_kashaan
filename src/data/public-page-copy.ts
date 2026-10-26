@@ -166,6 +166,12 @@ export type PublicPageCopy = {
     featuredBadge: string;
     aboutHeading: string;
     skillsHeading: string;
+    writingHeading: string;
+    noWritingSamples: string;
+    readWork: string;
+    connectHeading: string;
+    booksHeading: string;
+    websitesHeading: string;
     noBiography: string;
   };
   partnersPage: {
@@ -409,6 +415,12 @@ export const defaultPublicPageCopy: PublicPageCopy = {
     featuredBadge: "Featured artist",
     aboutHeading: "About",
     skillsHeading: "Skills",
+    writingHeading: "Writing & selected work",
+    noWritingSamples: "This artist has not shared writing samples yet.",
+    readWork: "Read or explore",
+    connectHeading: "Connect",
+    booksHeading: "Books & publications",
+    websitesHeading: "Websites",
     noBiography: "This artist has not added a biography yet.",
   },
   partnersPage: {

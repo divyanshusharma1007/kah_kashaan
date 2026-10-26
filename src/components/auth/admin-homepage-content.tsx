@@ -700,7 +700,7 @@ export function AdminHomepageContent() {
                     <div className="space-y-3">
                       <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/[0.08] bg-[#1a1711]">
                         {member.image && (
-                          <Image alt={member.imageAlt || member.name} className="object-cover" fill sizes="160px" src={member.image} unoptimized />
+                          <Image alt={member.imageAlt || member.name} className="object-cover" fill loading="lazy" sizes="160px" src={member.image} unoptimized />
                         )}
                       </div>
                       <label className={labelClass}>

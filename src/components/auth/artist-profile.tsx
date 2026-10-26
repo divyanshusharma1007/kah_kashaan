@@ -202,105 +202,142 @@ export function ArtistProfile() {
         <p className="text-[10px] uppercase tracking-[0.24em] text-[#d9af57]">Your creative identity</p>
         <h2 className="mt-2 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="artist-profile-heading">Artist profile</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#a99b7e]">
-          Share where you are based and what you love to perform. Your contact number is optional and can be changed at any time.
+          Shape how audiences discover your work. Your bio, skills, and links are shown when your profile is featured; your phone, street address, and postal code stay private. Manage writing samples in your separate writing portfolio.
         </p>
       </div>
       {error && <p className="mx-5 mt-5 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200 sm:mx-7" role="alert">{error}</p>}
       <form className="space-y-6 p-5 sm:p-7" onSubmit={handleSubmit}>
         <fieldset disabled={loading || saving} className="space-y-5">
           <legend className="sr-only">Edit your artist profile</legend>
-          <div className="flex flex-col gap-4 rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-4 sm:flex-row sm:items-center">
-            {photoFileId ? (
-              <Image
-                alt="Artist profile photo"
-                className="h-20 w-20 rounded-full border border-[#d9af57]/30 object-cover"
-                height={80}
-                src={`/api/artist/profile/photo?version=${encodeURIComponent(photoVersion)}`}
-                unoptimized
-                width={80}
-              />
-            ) : (
-              <span aria-hidden="true" className="grid h-20 w-20 shrink-0 place-items-center rounded-full border border-[#d9af57]/25 bg-[#d9af57]/[0.07] font-[var(--font-display)] text-3xl text-[#f3d98c]">
-                A
+          <details className="group rounded-xl border border-white/[0.08] bg-[#0b0b0a]" open>
+            <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-4 outline-none transition hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d9af57] [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-sm font-medium text-[#fff5d9]">Personal details</span>
+                <span className="mt-1 block text-xs text-[#827864]">Photo, contact information, and location</span>
               </span>
-            )}
-            <div className="min-w-0 flex-1">
+              <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#d9af57]/30 text-lg text-[#d9af57] transition-transform group-open:rotate-45">+</span>
+            </summary>
+            <div className="space-y-5 border-t border-white/[0.07] p-4">
+              <div className="flex flex-col gap-4 rounded-xl border border-white/[0.07] bg-[#10100f] p-4 sm:flex-row sm:items-center">
+                {photoFileId ? (
+                  <Image
+                    alt="Artist profile photo"
+                    className="h-20 w-20 rounded-full border border-[#d9af57]/30 object-cover"
+                    height={80}
+                    src={`/api/artist/profile/photo?version=${encodeURIComponent(photoVersion)}`}
+                    unoptimized
+                    width={80}
+                  />
+                ) : (
+                  <span aria-hidden="true" className="grid h-20 w-20 shrink-0 place-items-center rounded-full border border-[#d9af57]/25 bg-[#d9af57]/[0.07] font-[var(--font-display)] text-3xl text-[#f3d98c]">
+                    A
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <label className={labelClass}>
+                    Profile photo <span className="text-[#827864]">(optional)</span>
+                    <input
+                      accept="image/jpeg,image/png,image/webp"
+                      className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-[#d9af57] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#121212]`}
+                      disabled={loading || photoUploading}
+                      onChange={(event) => void uploadPhoto(event)}
+                      type="file"
+                    />
+                  </label>
+                  <p className="mt-2 text-xs leading-5 text-[#827864]">JPEG, PNG, or WebP · up to 5 MB. Your photo is stored privately using ImageKit, with Cloudinary as a fallback.</p>
+                  {photoUploading && <p className="mt-2 text-xs text-[#f0ddab]" role="status">Uploading photo...</p>}
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className={labelClass}>
+                  Mobile number <span className="text-[#827864]">(optional)</span>
+                  <input autoComplete="tel" className={inputClass} maxLength={40} minLength={profile.phone ? 5 : undefined} onChange={(event) => updateField("phone", event.target.value)} placeholder="Add a contact number" type="tel" value={profile.phone} />
+                </label>
+                <label className={labelClass}>
+                  PIN / postal code <span className="text-[#827864]">(optional)</span>
+                  <input autoComplete="postal-code" className={inputClass} maxLength={12} onChange={(event) => updateField("pinCode", event.target.value)} placeholder="e.g. 202001" value={profile.pinCode} />
+                </label>
+                <label className={`${labelClass} md:col-span-2`}>
+                  Street address <span className="text-[#827864]">(optional)</span>
+                  <input autoComplete="street-address" className={inputClass} maxLength={240} onChange={(event) => updateField("address", event.target.value)} placeholder="Street, locality, or area" value={profile.address} />
+                </label>
+                <label className={labelClass}>
+                  City <span className="text-[#827864]">(optional)</span>
+                  <input autoComplete="address-level2" className={inputClass} maxLength={100} onChange={(event) => updateField("city", event.target.value)} placeholder="Your city" value={profile.city} />
+                </label>
+                <label className={labelClass}>
+                  State <span className="text-[#827864]">(optional)</span>
+                  <input autoComplete="address-level1" className={inputClass} maxLength={100} onChange={(event) => updateField("state", event.target.value)} placeholder="Your state" value={profile.state} />
+                </label>
+              </div>
+            </div>
+          </details>
+
+          <details className="group rounded-xl border border-white/[0.08] bg-[#0b0b0a]" open>
+            <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-4 outline-none transition hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d9af57] [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-sm font-medium text-[#fff5d9]">About you</span>
+                <span className="mt-1 block text-xs text-[#827864]">Share your creative journey with the community</span>
+              </span>
+              <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#d9af57]/30 text-lg text-[#d9af57] transition-transform group-open:rotate-45">+</span>
+            </summary>
+            <div className="border-t border-white/[0.07] p-4">
               <label className={labelClass}>
-                Profile photo <span className="text-[#827864]">(optional)</span>
-                <input
-                  accept="image/jpeg,image/png,image/webp"
-                  className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-[#d9af57] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#121212]`}
-                  disabled={loading || photoUploading}
-                  onChange={(event) => void uploadPhoto(event)}
-                  type="file"
-                />
+                About you <span className="text-[#827864]">(optional, up to 1,000 characters)</span>
+                <textarea className={`${inputClass} min-h-24 py-3`} maxLength={1000} onChange={(event) => updateField("bio", event.target.value)} placeholder="Tell the community a little about your creative journey..." rows={4} value={profile.bio} />
               </label>
-              <p className="mt-2 text-xs leading-5 text-[#827864]">JPEG, PNG, or WebP · up to 5 MB. Your photo is stored privately using ImageKit, with Cloudinary as a fallback.</p>
-              {photoUploading && <p className="mt-2 text-xs text-[#f0ddab]" role="status">Uploading photo...</p>}
             </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className={labelClass}>
-              Mobile number <span className="text-[#827864]">(optional)</span>
-              <input autoComplete="tel" className={inputClass} maxLength={40} minLength={profile.phone ? 5 : undefined} onChange={(event) => updateField("phone", event.target.value)} placeholder="Add a contact number" type="tel" value={profile.phone} />
-            </label>
-            <label className={labelClass}>
-              PIN / postal code <span className="text-[#827864]">(optional)</span>
-              <input autoComplete="postal-code" className={inputClass} maxLength={12} onChange={(event) => updateField("pinCode", event.target.value)} placeholder="e.g. 202001" value={profile.pinCode} />
-            </label>
-            <label className={`${labelClass} md:col-span-2`}>
-              Street address <span className="text-[#827864]">(optional)</span>
-              <input autoComplete="street-address" className={inputClass} maxLength={240} onChange={(event) => updateField("address", event.target.value)} placeholder="Street, locality, or area" value={profile.address} />
-            </label>
-            <label className={labelClass}>
-              City <span className="text-[#827864]">(optional)</span>
-              <input autoComplete="address-level2" className={inputClass} maxLength={100} onChange={(event) => updateField("city", event.target.value)} placeholder="Your city" value={profile.city} />
-            </label>
-            <label className={labelClass}>
-              State <span className="text-[#827864]">(optional)</span>
-              <input autoComplete="address-level1" className={inputClass} maxLength={100} onChange={(event) => updateField("state", event.target.value)} placeholder="Your state" value={profile.state} />
-            </label>
-          </div>
+          </details>
 
-          <label className={labelClass}>
-            About you <span className="text-[#827864]">(optional, up to 1,000 characters)</span>
-            <textarea className={`${inputClass} min-h-24 py-3`} maxLength={1000} onChange={(event) => updateField("bio", event.target.value)} placeholder="Tell the community a little about your creative journey..." rows={4} value={profile.bio} />
-          </label>
-
-          <fieldset>
-            <legend className="mb-3 text-xs font-medium text-[#cbbd9f]">Performance skills</legend>
-            <p className="mb-3 text-xs leading-5 text-[#827864]">Choose the skills you would like to be known for. Hover over a skill for its description.</p>
-            <ArtistSkillSelector
-              idPrefix="profile"
-              onChange={(ids) => updateField("skillIds", ids)}
-              selectedIds={profile.skillIds}
-              skills={skills}
-            />
-          </fieldset>
-
-          <fieldset className="space-y-3">
-            <legend className="text-xs font-medium text-[#cbbd9f]">Books, social media &amp; website links</legend>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs leading-5 text-[#827864]">
-                These links are visible to everyone when your profile is featured. Add up to 20 secure HTTPS links.
-              </p>
-              <button
-                className="min-h-10 rounded-full border border-[#d9af57]/35 px-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#f0ddab] transition hover:border-[#d9af57] disabled:opacity-50"
-                disabled={profile.links.length >= 20}
-                onClick={() => updateField("links", [...profile.links, { label: "", url: "", type: "social" }])}
-                type="button"
-              >
-                Add link
-              </button>
+          <details className="group rounded-xl border border-white/[0.08] bg-[#0b0b0a]" open>
+            <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-4 outline-none transition hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d9af57] [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-sm font-medium text-[#fff5d9]">Performance skills</span>
+                <span className="mt-1 block text-xs text-[#827864]">{profile.skillIds.length} selected</span>
+              </span>
+              <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#d9af57]/30 text-lg text-[#d9af57] transition-transform group-open:rotate-45">+</span>
+            </summary>
+            <div className="border-t border-white/[0.07] p-4">
+              <p className="mb-3 text-xs leading-5 text-[#827864]">Choose your strengths. Each skill includes a description so visitors can understand your craft.</p>
+              <ArtistSkillSelector
+                idPrefix="profile"
+                onChange={(ids) => updateField("skillIds", ids)}
+                selectedIds={profile.skillIds}
+                skills={skills}
+              />
             </div>
-            {profile.links.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-white/[0.1] p-4 text-xs text-[#827864]">
-                Add a book purchase link, social profile, or personal website.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {profile.links.map((link, index) => (
-                  <div className="grid gap-3 rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-3 sm:grid-cols-[1fr_1.5fr_0.8fr_auto] sm:items-end" key={`profile-link-${index}`}>
+          </details>
+
+          <details className="group rounded-xl border border-white/[0.08] bg-[#0b0b0a]" open>
+            <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-4 outline-none transition hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d9af57] [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-sm font-medium text-[#fff5d9]">Books, social media &amp; website links</span>
+                <span className="mt-1 block text-xs text-[#827864]">{profile.links.length} links added</span>
+              </span>
+              <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#d9af57]/30 text-lg text-[#d9af57] transition-transform group-open:rotate-45">+</span>
+            </summary>
+            <div className="space-y-3 border-t border-white/[0.07] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs leading-5 text-[#827864]">
+                  These links are visible to everyone when your profile is featured. Add up to 20 secure HTTPS links.
+                </p>
+                <button
+                  className="min-h-10 rounded-full border border-[#d9af57]/35 px-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#f0ddab] transition hover:border-[#d9af57] disabled:opacity-50"
+                  disabled={profile.links.length >= 20}
+                  onClick={() => updateField("links", [...profile.links, { label: "", url: "", type: "social" }])}
+                  type="button"
+                >
+                  Add link
+                </button>
+              </div>
+              {profile.links.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-white/[0.1] p-4 text-xs text-[#827864]">
+                  Add a book purchase link, social profile, or personal website.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {profile.links.map((link, index) => (
+                    <div className="grid gap-3 rounded-xl border border-white/[0.07] bg-[#0b0b0a] p-3 sm:grid-cols-[1fr_1.5fr_0.8fr_auto] sm:items-end" key={`profile-link-${index}`}>
                     <label className={labelClass}>
                       Link name
                       <input
@@ -342,11 +379,12 @@ export function ArtistProfile() {
                     >
                       Remove
                     </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </fieldset>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
         </fieldset>
         <div className="flex flex-wrap items-center gap-4 border-t border-white/[0.07] pt-5">
           <button className="min-h-11 rounded-full bg-[#d9af57] px-6 text-xs font-semibold uppercase tracking-[0.14em] text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60" disabled={loading || saving} type="submit">

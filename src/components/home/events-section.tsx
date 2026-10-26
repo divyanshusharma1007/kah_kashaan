@@ -1,5 +1,6 @@
 import type { EventItem } from "@/data/home-page-data";
 import type { PublicPageCopy } from "@/data/public-page-copy";
+import Image from "next/image";
 import Link from "next/link";
 
 type EventsSectionProps = {
@@ -63,8 +64,23 @@ export function EventsSection({ upcomingEvents, copy }: EventsSectionProps) {
           {upcomingEvents.map((event) => (
             <article
               key={event.id ?? event.title}
-              className="group grid min-w-0 gap-4 rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-4 transition duration-200 hover:border-[#d9af57]/55 hover:bg-[#151411] sm:p-5 md:grid-cols-[96px_minmax(0,1fr)_auto] md:items-center"
+              className={`group grid min-w-0 gap-4 rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-4 transition duration-200 hover:border-[#d9af57]/55 hover:bg-[#151411] sm:p-5 md:items-center ${
+                event.posterUrl
+                  ? "md:grid-cols-[80px_96px_minmax(0,1fr)_auto]"
+                  : "md:grid-cols-[96px_minmax(0,1fr)_auto]"
+              }`}
             >
+              {event.posterUrl && (
+                <Image
+                  alt={`${event.title} event poster`}
+                  className="h-28 w-20 rounded-xl border border-white/[0.08] object-cover"
+                  height={336}
+                  loading="lazy"
+                  src={event.posterUrl}
+                  unoptimized
+                  width={240}
+                />
+              )}
               <div className="flex h-20 w-20 flex-col items-center justify-center rounded-2xl border border-[#d9af57]/25 bg-[#171717] text-center sm:h-[100px] sm:w-full">
                 <div className="font-[var(--font-display)] text-3xl text-[#f5d99a]">{event.date.split(" ")[0]}</div>
                 <div className="text-[10px] uppercase tracking-[0.25em] text-[#d8c89f]">{event.date.split(" ")[1]}</div>
@@ -76,13 +92,16 @@ export function EventsSection({ upcomingEvents, copy }: EventsSectionProps) {
                 <p className="mt-2 break-words text-sm text-[#d8c8a2]">
                   {event.venue}{event.city ? ` · ${event.city}` : ""}
                 </p>
-                {event.startsAt && (
+                {(event.dates?.length ? event.dates : event.startsAt ? [event.startsAt] : []).length > 0 && (
                   <p className="mt-2 text-xs text-[#b9ab8c]">
-                    {new Intl.DateTimeFormat("en-IN", {
-                      dateStyle: "full",
-                      timeStyle: "short",
-                      timeZone: "Asia/Kolkata",
-                    }).format(new Date(event.startsAt))}
+                    {event.dates?.length ? "All dates: " : ""}
+                    {(event.dates?.length ? event.dates : [event.startsAt!]).map((date) =>
+                      new Intl.DateTimeFormat("en-IN", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                        timeZone: "Asia/Kolkata",
+                      }).format(new Date(date)),
+                    ).join(" · ")}
                   </p>
                 )}
                 {event.description && (

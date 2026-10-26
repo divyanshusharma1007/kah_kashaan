@@ -1,12 +1,18 @@
 import type { ProgramCard } from "@/data/home-page-data";
 import Link from "next/link";
 
+type ProgramCategoryLink = {
+  label: string;
+  href: string;
+};
+
 type ProgramSectionProps = {
   programs: ProgramCard[];
   eyebrow: string;
   heading: string;
   exploreLabel: string;
   emptyMessage: string;
+  categoryLinks?: ProgramCategoryLink[];
 };
 
 export function ProgramSection({
@@ -15,6 +21,7 @@ export function ProgramSection({
   heading,
   exploreLabel,
   emptyMessage,
+  categoryLinks = [],
 }: ProgramSectionProps) {
   return (
     <section id="programs" className="py-14">
@@ -24,6 +31,20 @@ export function ProgramSection({
           {heading}
         </h2>
       </div>
+
+      {categoryLinks.length > 0 && (
+        <div className="mb-8 flex flex-wrap justify-center gap-3">
+          {categoryLinks.map((category) => (
+            <Link
+              key={category.href}
+              href={category.href}
+              className="rounded-full border border-[#d9af57]/30 bg-[#14120d] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#f0ddab] transition hover:border-[#d9af57] hover:text-[#fff5d9]"
+            >
+              {category.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {programs.length === 0 ? (
         <p className="rounded-2xl border border-white/[0.08] bg-[#10100f] p-6 text-center text-sm text-[#a99b7e]">

@@ -21,6 +21,8 @@ export type ArtistRegistration = {
   eventId?: string;
   eventStartsAt?: string;
   eventPrice?: number;
+  paymentMethod?: "razorpay" | "at-event" | "free";
+  paymentStatus?: "paid" | "due" | "not-required";
   willPerform?: boolean;
   skillNames?: string[];
 };

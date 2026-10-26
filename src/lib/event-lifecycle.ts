@@ -16,12 +16,18 @@ function indiaCalendarDate(value: Date): string {
 
 export function getEventLifecycleStatus(
   status: EventPublicationStatus,
-  startsAt: string | Date,
+  startsAt: string | Date | readonly (string | Date)[],
   now: Date = new Date(),
 ): EventLifecycleStatus {
-  const eventDate = startsAt instanceof Date ? startsAt : new Date(startsAt);
-  if (!Number.isFinite(eventDate.getTime())) return status;
-  if (status === "published" && indiaCalendarDate(eventDate) < indiaCalendarDate(now)) {
+  const eventDates: readonly (string | Date)[] =
+    typeof startsAt === "string" || startsAt instanceof Date ? [startsAt] : startsAt;
+  if (eventDates.length === 0) return status;
+  const dates = eventDates.map((value) => value instanceof Date ? value : new Date(value));
+  if (dates.some((date) => !Number.isFinite(date.getTime()))) return status;
+  if (
+    status === "published" &&
+    dates.every((date) => indiaCalendarDate(date) < indiaCalendarDate(now))
+  ) {
     return "completed";
   }
   return status;

@@ -14,7 +14,18 @@ pnpm dev
 bun dev
 ```
 
-The development command loads server settings from `.env.develop`. Copy `.env.example` to `.env.develop` and fill in the required values before starting the app.
+Use `.env.local` for local development and `.env.develop` for the development server. The app selects the file automatically based on `APP_ENV` when it is set; if `APP_ENV` is omitted, it defaults to local development and loads `.env.local`.
+
+Example:
+
+```bash
+# Local machine
+npm run dev
+# or set APP_ENV=develop for the development server environment
+APP_ENV=develop npm run dev
+```
+
+Copy `.env.example` to the matching file and fill in the required values before starting the app.
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
@@ -30,9 +41,11 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 The admin artist directory at `/dashboard/artists` supports profile/event search, role and feature-status filters, and sorting. Administrators can promote artists, revoke admin access, manage artist sign-in, and approve or remove public artist features. Revoking the final verified admin or your own admin access is prevented; role changes take effect for existing sessions as well. Artist and event lists include search/filter/sort controls, and selecting an event opens its admin overview.
 
-Artists can request a public feature from `/dashboard/artist/featured`. Admin approval publishes their profile in the public `/artists` directory and at `/artists/[id]`. Only name, location (city/state), bio, selected skills, and profile photo are public; email, phone, and street address remain private. Administrators manage pending feature requests in the artist directory.
+Artists manage their writing portfolio at `/dashboard/artist/writing`, where they can submit up to 100 works, label each kind, and select up to four pieces for review. At least three must be selected before requesting a feature. Selected writeups stay private until an administrator approves them; administrators can also select and approve other submissions. Approved selections appear on the artist's public profile. Artists request featuring from `/dashboard/artist/featured` and pay the configured fee through Razorpay. Administrators set that INR fee and review paid requests, approve or reject writeups, or mark a feature request free from `/dashboard/artist-content`. Only name, location (city/state), bio, selected skills, approved selected writeups, public links, and profile photo are public; email, phone, and street address remain private.
 
 ### Admin event management
+
+Administrators can upload an optional JPEG, PNG, or WebP poster (up to 5 MB) and add up to 20 event dates. Published posters and dates appear on the public event listings and event detail page. Registration remains event-wide rather than tied to a selected date.
 
 Use an existing account in the MongoDB `users` collection and set its `role` to `admin` to enable the protected admin dashboard. The dashboard sidebar links to the overview, event manager, artist directory, and a one-click switch to the account's artist view; artists cannot access the admin views. The admin APIs verify the signed server-side session and require the event database to be available. Create events separately from the overview at `/dashboard/events/new`; the form includes a title, description, type, date and time, location, ticket price, optional capacity and organizer, and a visibility setting. New events are published by default; choose “Save as draft” to keep an event off the public website. Changes to published events are reflected on the next page request.
 
@@ -40,9 +53,11 @@ The overview displays user, admin, artist, and event counts alongside registrati
 
 Event registrations are validated against published upcoming events and saved in the MongoDB `artistRegistrations` collection, including the ticket price and payment status at registration time. Paid tickets use Razorpay Checkout and are not registered until the server verifies the payment signature and confirms the captured amount against the event price. Checkout prefills the artist name, email, and available phone number from the signed-in artist's MongoDB account; prefilled email/contact fields are read-only so artists only need to complete payment details. Payment methods are controlled by the methods enabled in Razorpay Checkout. Payment can also be collected at the event, and free events require no payment. Configure `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in the server environment (use Razorpay test keys for development and live keys only in production). Enable the required payment methods in the Razorpay Dashboard. Keep the secret server-side; never use a `NEXT_PUBLIC_` variable. Pending orders are stored in MongoDB's `razorpayOrders` collection. Admin income totals include captured online payments and legacy registrations; payments due at the event are shown separately and are not counted as received income. Admins can see registrant names, email addresses, phone numbers, chosen events, and payment status in protected views. Signed-in artists can see their own server-saved registrations; the separate browser demo registration state is still local to that browser. Skills can be edited but not deleted.
 
+Admins can upload JPEG, PNG, or WebP sponsor logos up to 5 MB and add up to 20 named links per sponsor, such as a website, Instagram, or YouTube channel. These links appear on the public sponsor profile; uploaded logos are served through the app's public image route.
+
 ### Google sign-in configuration
 
-Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and a random `AUTH_SECRET` of at least 32 characters in the server environment. Set `APP_URL` to the app's public base URL so successful sign-ins return to the public site rather than an internal proxy address; when it is omitted, Google sign-in uses the origin of `GOOGLE_REDIRECT_URI`. Add the exact `GOOGLE_REDIRECT_URI` value to the OAuth client's authorized redirect URIs in Google Cloud Console. MongoDB must be configured through `MONGODB_URI` or `MONGODB_PASSWORD`; set `MONGODB_DB` if the connection URI does not name the database. The selected database must have (or allow creation of) a `users` collection with `email` and `role` fields. New accounts save `email`, `emailNormalized`, `name`, and `role`; Google accounts also save `provider` and `googleId`, while password accounts store salted password hashes. Existing `artist` and `admin` roles are honored at login.
+Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and a random `AUTH_SECRET` of at least 32 characters in the server environment. Set `APP_URL` to the app's public base URL so successful sign-ins return to the public site rather than an internal proxy address; when it is omitted, Google sign-in uses the origin of `GOOGLE_REDIRECT_URI`. The redirect URI must use the same browser-facing host and protocol used to start sign-in, and its exact value must be added to the OAuth client's authorized redirect URIs in Google Cloud Console. For local development on port 3000, use `http://localhost:3000/api/auth/google/callback` and open the app at `http://localhost:3000`. Using a different host, protocol, or port to start sign-in can prevent the OAuth state cookie from reaching the callback. MongoDB must be configured through `MONGODB_URI` or `MONGODB_PASSWORD`; set `MONGODB_DB` if the connection URI does not name the database. The selected database must have (or allow creation of) a `users` collection with `email` and `role` fields. New accounts save `email`, `emailNormalized`, `name`, and `role`; Google accounts also save `provider` and `googleId`, while password accounts store salted password hashes. Existing `artist` and `admin` roles are honored at login.
 
 ### Private artist photos in ImageKit and Cloudinary
 

@@ -45,14 +45,21 @@ export default async function PartnerProfilePage({
             {partner.name}
           </h1>
           <p className="mt-5 text-base leading-7 text-[#d8c8a2]">{partner.details || partner.summary}</p>
-          <a
-            href={partner.website}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-7 inline-block break-all text-sm text-[#d9af57] underline decoration-[#d9af57]/40 underline-offset-4 hover:text-[#fff5d9]"
-          >
-            {copy.websiteLabel}: {partner.website}
-          </a>
+          {partner.links.length > 0 && (
+            <nav aria-label={`${partner.name} links`} className="mt-7 flex flex-wrap gap-2">
+              {partner.links.map((link) => (
+                <a
+                  className="inline-flex min-h-10 items-center rounded-full border border-[#d9af57]/30 px-4 py-2 text-xs text-[#f0ddab] transition hover:border-[#f2d98b] hover:text-white"
+                  href={link.url}
+                  key={`${link.label}-${link.url}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {link.label} ↗
+                </a>
+              ))}
+            </nav>
+          )}
           <div>
             <Link
               href="/partners"

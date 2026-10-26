@@ -10,7 +10,13 @@ export type SponsorInput = {
   details: string;
   website: string;
   logoUrl: string;
+  links: SponsorLink[];
   isWebsiteSponsor: boolean;
+};
+
+export type SponsorLink = {
+  label: string;
+  url: string;
 };
 
 export type ManagedSponsor = SponsorInput & {
@@ -20,7 +26,8 @@ export type ManagedSponsor = SponsorInput & {
   updatedAt: string;
 };
 
-type SponsorDocument = SponsorInput & {
+type SponsorDocument = Omit<SponsorInput, "links"> & {
+  links?: SponsorLink[];
   slug: string;
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +48,7 @@ function serializeSponsor(sponsor: WithId<SponsorDocument>): ManagedSponsor {
     details: sponsor.details,
     website: sponsor.website,
     logoUrl: sponsor.logoUrl,
+    links: sponsor.links ?? (sponsor.website ? [{ label: "Website", url: sponsor.website }] : []),
     isWebsiteSponsor: sponsor.isWebsiteSponsor,
     createdAt: sponsor.createdAt.toISOString(),
     updatedAt: sponsor.updatedAt.toISOString(),
@@ -80,19 +88,63 @@ export function parseSponsorInput(value: unknown):
     details: (body.details as string).trim(),
     website: (body.website as string).trim(),
     logoUrl: (body.logoUrl as string).trim(),
+    links: [],
     isWebsiteSponsor: body.isWebsiteSponsor === true,
   };
+  const rawLinks = body.links === undefined
+    ? data.website ? [{ label: "Website", url: data.website }] : []
+    : body.links;
+  if (
+    !Array.isArray(rawLinks) ||
+    rawLinks.length > 20 ||
+    !rawLinks.every((link) =>
+      link &&
+      typeof link === "object" &&
+      "label" in link &&
+      typeof link.label === "string" &&
+      "url" in link &&
+      typeof link.url === "string",
+    )
+  ) {
+    return { success: false, error: "Add up to 20 valid sponsor links." };
+  }
+  data.links = rawLinks.map((link) => ({
+    label: link.label.trim(),
+    url: link.url.trim(),
+  }));
+  data.website = data.links.find((link) => link.label.toLowerCase() === "website")?.url ?? "";
   if (data.name.length < 2 || data.name.length > 120) {
     return { success: false, error: "Sponsor name must be between 2 and 120 characters." };
   }
   if (data.category.length > 80 || data.summary.length > 300 || data.details.length > 3000) {
     return { success: false, error: "Check the sponsor category, summary, or details length." };
   }
-  if (data.website.length > 500 || data.logoUrl.length > 500) {
-    return { success: false, error: "Sponsor website and logo URLs must be 500 characters or fewer." };
+  if (data.logoUrl.length > 500 || data.links.some((link) =>
+    link.label.length < 1 ||
+    link.label.length > 50 ||
+    link.url.length > 500 ||
+    !link.url
+  )) {
+    return { success: false, error: "Check that each sponsor link has a label and a URL of up to 500 characters." };
   }
-  if (!isSafeWebUrl(data.website) || !isSafeWebUrl(data.logoUrl)) {
-    return { success: false, error: "Sponsor website and logo must use a valid HTTP or HTTPS URL." };
+  if (data.links.some((link) => !isSafeWebUrl(link.url))) {
+    return { success: false, error: "Sponsor links must use valid HTTP or HTTPS URLs." };
+  }
+  if (data.logoUrl && !isSafeWebUrl(data.logoUrl)) {
+    try {
+      const logo = new URL(data.logoUrl, "https://kah-kashaan.local");
+      const reference = logo.searchParams.get("reference");
+      if (
+        logo.origin !== "https://kah-kashaan.local" ||
+        logo.pathname !== "/api/sponsors/logo" ||
+        !reference ||
+        (!reference.startsWith("imagekit:") && !reference.startsWith("cloudinary:"))
+      ) {
+        return { success: false, error: "Upload a valid sponsor logo." };
+      }
+    } catch {
+      return { success: false, error: "Upload a valid sponsor logo." };
+    }
   }
   return { success: true, data };
 }

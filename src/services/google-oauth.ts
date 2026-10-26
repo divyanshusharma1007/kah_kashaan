@@ -7,6 +7,18 @@ import { createGoogleAuthLogger } from "@/services/google-auth-logging";
 const OAUTH_COOKIE_AGE_SECONDS = 10 * 60;
 const CALLBACK_PATH = "/api/auth/google/callback";
 
+function shouldUseSecureOAuthCookies(request: NextRequest): boolean {
+  const forwardedProtocol = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim()
+    .toLowerCase();
+
+  return process.env.NODE_ENV === "production" ||
+    request.nextUrl.protocol === "https:" ||
+    forwardedProtocol === "https";
+}
+
 export function startGoogleAuth(request: NextRequest, intent: "login" | "signup") {
   const logger = createGoogleAuthLogger();
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -41,7 +53,7 @@ export function startGoogleAuth(request: NextRequest, intent: "login" | "signup"
   const response = NextResponse.redirect(authorizationUrl);
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureOAuthCookies(request),
     sameSite: "lax" as const,
     maxAge: OAUTH_COOKIE_AGE_SECONDS,
     path: CALLBACK_PATH,

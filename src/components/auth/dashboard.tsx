@@ -14,6 +14,7 @@ const adminNavigation = [
   { href: "/dashboard/events", label: "Events", icon: "events" },
   { href: "/dashboard/skills", label: "Skills", icon: "skills" },
   { href: "/dashboard/artists", label: "Artists", icon: "artists" },
+  { href: "/dashboard/artist-content", label: "Artist work", icon: "content" },
   { href: "/dashboard/users", label: "Accounts", icon: "artists" },
   { href: "/dashboard/sponsors", label: "Sponsors", icon: "sponsors" },
 ] as const;
@@ -76,6 +77,7 @@ function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "art
 
 function routeTitle(pathname: string, isAdmin: boolean): string {
   if (!isAdmin && pathname === "/dashboard/artist/profile") return "Profile settings";
+  if (!isAdmin && pathname === "/dashboard/artist/writing") return "Writing portfolio";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/featured")) return "Public profile";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/registration-success")) return "Registration confirmed";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/register")) return "Register for event";
@@ -87,6 +89,7 @@ function routeTitle(pathname: string, isAdmin: boolean): string {
   if (pathname.startsWith("/dashboard/events")) return "Events";
   if (pathname.startsWith("/dashboard/skills")) return "Performance skills";
   if (pathname.startsWith("/dashboard/artists")) return "Artists";
+  if (pathname.startsWith("/dashboard/artist-content")) return "Artist work";
   if (pathname.startsWith("/dashboard/users")) return "Account directory";
   if (pathname.startsWith("/dashboard/sponsors")) return "Sponsors";
   return "Overview";
@@ -194,6 +197,17 @@ export function Dashboard({ children }: { children: ReactNode }) {
             >
               <DashboardIcon name="artist" />
               Profile settings
+            </Link>
+            <Link
+              aria-current={pathname === "/dashboard/artist/writing" ? "page" : undefined}
+              className={`mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-xs ${
+                pathname === "/dashboard/artist/writing" ? "bg-[#d9af57]/10 text-[#f3d98c]" : "text-[#a99b7e] hover:bg-white/[0.04]"
+              }`}
+              href="/dashboard/artist/writing"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <DashboardIcon name="content" />
+              Writing portfolio
             </Link>
             <Link
               aria-current={pathname.startsWith("/dashboard/artist/featured") ? "page" : undefined}
@@ -316,7 +330,6 @@ export function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentTime, setCurrentTime] = useState<number | null>(null);
-  const [activeRegistrationIndex, setActiveRegistrationIndex] = useState(0);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setCurrentTime(Date.now()), 0);
@@ -413,6 +426,8 @@ export function DashboardHome() {
             eventId?: unknown;
             eventStartsAt?: unknown;
             eventPrice?: unknown;
+            paymentMethod?: unknown;
+            paymentStatus?: unknown;
             willPerform?: unknown;
             skillNames?: unknown;
           };
@@ -427,6 +442,16 @@ export function DashboardHome() {
             ...(typeof registration.eventId === "string" ? { eventId: registration.eventId } : {}),
             ...(typeof registration.eventStartsAt === "string" ? { eventStartsAt: registration.eventStartsAt } : {}),
             ...(typeof registration.eventPrice === "number" ? { eventPrice: registration.eventPrice } : {}),
+            ...(registration.paymentMethod === "razorpay" ||
+              registration.paymentMethod === "at-event" ||
+              registration.paymentMethod === "free"
+              ? { paymentMethod: registration.paymentMethod }
+              : {}),
+            ...(registration.paymentStatus === "paid" ||
+              registration.paymentStatus === "due" ||
+              registration.paymentStatus === "not-required"
+              ? { paymentStatus: registration.paymentStatus }
+              : {}),
             ...(typeof registration.willPerform === "boolean" ? { willPerform: registration.willPerform } : {}),
             ...(Array.isArray(registration.skillNames) &&
               registration.skillNames.every((skill) => typeof skill === "string")
@@ -436,7 +461,6 @@ export function DashboardHome() {
         }).filter((entry): entry is ArtistRegistration => entry !== null);
         if (active) {
           setServerRegistrations(parsed);
-          setActiveRegistrationIndex(0);
         }
       })
       .catch((cause: unknown) => {
@@ -454,13 +478,13 @@ export function DashboardHome() {
   const visibleRegistrations = user?.provider
     ? serverRegistrations
     : registrations.filter((registration) => registration.email === user?.email);
-  useEffect(() => {
-    if (visibleRegistrations.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => {
-      setActiveRegistrationIndex((index) => (index + 1) % visibleRegistrations.length);
-    }, 6500);
-    return () => window.clearInterval(timer);
-  }, [visibleRegistrations.length]);
+  const availableEvents = upcomingEvents.filter((event) =>
+    !visibleRegistrations.some((registration) =>
+      registration.eventId
+        ? registration.eventId === event.id
+        : registration.eventName.trim().toLowerCase() === event.title.trim().toLowerCase(),
+    ),
+  );
   if (user?.role === "admin") return <AdminOverview />;
   const performedRegistrations = visibleRegistrations.filter((registration) =>
     registration.willPerform !== false &&
@@ -474,105 +498,80 @@ export function DashboardHome() {
       currentTime === null ||
       new Date(registration.eventStartsAt).getTime() >= currentTime),
   );
-  const activeRegistration = visibleRegistrations[activeRegistrationIndex];
-
-  function moveRegistration(direction: -1 | 1) {
-    setActiveRegistrationIndex((index) =>
-      (index + direction + visibleRegistrations.length) % visibleRegistrations.length,
-    );
-  }
-
+  const registrationLoading = Boolean(user?.provider) && loading;
   return (
-    <section className="space-y-8" aria-labelledby="my-registrations-heading">
+    <section className="space-y-7" aria-labelledby="artist-overview-heading">
       {user?.role === "artist" && (
-        <header className="relative overflow-hidden rounded-[1.75rem] border border-[#d9af57]/20 bg-gradient-to-br from-[#251e10] via-[#11110f] to-[#10100f] p-6 sm:p-8">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-16 h-56 w-56 rounded-full bg-[#d9af57]/[0.09] blur-3xl" />
+        <header className="dashboard-enter dashboard-ambient relative isolate overflow-hidden rounded-[2rem] border border-[#d9af57]/25 bg-[radial-gradient(ellipse_at_85%_10%,rgba(217,175,87,0.2),transparent_38%),linear-gradient(135deg,#211a0e_0%,#12110e_50%,#0e0e0d_100%)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:p-9 lg:p-10">
+          <div aria-hidden="true" className="dashboard-ambient-glow pointer-events-none absolute -right-16 -top-24 h-80 w-80 rounded-full border border-[#d9af57]/10 bg-[#d9af57]/[0.04] blur-2xl" />
+          <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-[#d9af57]/[0.06] blur-3xl" />
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-[#d9af57]">Artist workspace</p>
-              <h1 className="mt-2 font-[var(--font-display)] text-4xl leading-tight text-[#fff5d9] sm:text-5xl">
+              <p className="inline-flex items-center gap-2 rounded-full border border-[#d9af57]/20 bg-black/20 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.24em] text-[#d9af57]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#d9af57] shadow-[0_0_12px_rgba(217,175,87,0.8)]" />
+                At a glance
+              </p>
+              <h1 className="dashboard-title-in mt-4 font-[var(--font-display)] text-4xl leading-[1.05] text-[#fff5d9] sm:text-5xl lg:text-6xl" id="artist-overview-heading">
                 Welcome, {user.name.split(" ")[0]}
               </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-[#c1b596]">
-                Your profile, upcoming performances, and event history in one place.
+              <p className="mt-3 max-w-xl text-sm leading-7 text-[#c1b596]">
+                Your performances, opportunities, and event history.
               </p>
             </div>
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#d9af57] px-5 text-xs font-semibold uppercase tracking-[0.14em] text-[#121212] transition hover:bg-[#f2d98b]" href="/events">
-              Explore events
+            <Link className="group inline-flex min-h-11 shrink-0 items-center justify-center gap-3 rounded-full border border-[#f1d58b]/70 bg-gradient-to-r from-[#e4bd63] to-[#c89c47] px-5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#15130e] shadow-[0_10px_30px_rgba(217,175,87,0.16)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(217,175,87,0.28)]" href="/dashboard/artist/register">
+              Find an event <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>
             </Link>
-          </div>
-          <div className="relative mt-7 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Upcoming performances</p>
-              <p className="mt-2 font-[var(--font-display)] text-3xl text-[#f5d99a]">{upcomingRegistrations.length}</p>
-            </div>
-            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Past performances</p>
-              <p className="mt-2 font-[var(--font-display)] text-3xl text-[#f0e6ce]">{performedRegistrations.length}</p>
-            </div>
-            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Artist account</p>
-              <p className="mt-2 truncate text-sm text-[#f0e6ce]">{user.email}</p>
-              <p className="mt-1 text-[10px] text-emerald-200">Active</p>
-            </div>
           </div>
         </header>
       )}
-      {user?.role === "artist" && (
-        <nav aria-label="Artist dashboard shortcuts" className="grid gap-3 sm:grid-cols-3">
-          <Link className="rounded-2xl border border-[#d9af57]/20 bg-[#10100f] p-4 transition hover:border-[#d9af57]/45" href="/dashboard/artist/profile">
-            <span className="block text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Your identity</span>
-            <span className="mt-2 block text-sm font-medium text-[#f0e6ce]">Edit artist profile</span>
-            <span className="mt-1 block text-xs text-[#827864]">Photo, bio, skills and links</span>
-          </Link>
-          <Link className="rounded-2xl border border-white/[0.08] bg-[#10100f] p-4 transition hover:border-[#d9af57]/35" href="/dashboard/artist/featured">
-            <span className="block text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Public presence</span>
-            <span className="mt-2 block text-sm font-medium text-[#f0e6ce]">Feature request</span>
-            <span className="mt-1 block text-xs text-[#827864]">Check your listing status</span>
-          </Link>
-          <Link className="rounded-2xl border border-white/[0.08] bg-[#10100f] p-4 transition hover:border-[#d9af57]/35" href="/dashboard/artist/register">
-            <span className="block text-[10px] uppercase tracking-[0.16em] text-[#d9af57]">Find a stage</span>
-            <span className="mt-2 block text-sm font-medium text-[#f0e6ce]">Register for events</span>
-            <span className="mt-1 block text-xs text-[#827864]">Browse available performances</span>
-          </Link>
-        </nav>
-      )}
-      <section aria-labelledby="upcoming-events-heading">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+
+      <section aria-label="Artist statistics" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {[
+          { label: "Registrations", value: visibleRegistrations.length, note: "Confirmed events", icon: "▦", accent: "text-amber-200", border: "border-amber-300/20" },
+          { label: "Upcoming", value: upcomingRegistrations.length, note: "Future performances", icon: "◷", accent: "text-emerald-200", border: "border-emerald-300/15" },
+          { label: "Past", value: performedRegistrations.length, note: "Completed performances", icon: "✓", accent: "text-sky-200", border: "border-sky-300/15" },
+          { label: "Open events", value: eventsLoading ? "—" : availableEvents.length, note: "Available to register", icon: "✳", accent: "text-violet-200", border: "border-violet-300/15" },
+        ].map((stat, index) => (
+          <article
+            className={`dashboard-enter dashboard-card-hover min-w-0 rounded-2xl border ${stat.border} bg-[#10100f] p-4 sm:p-5`}
+            key={stat.label}
+            style={{ animationDelay: `${80 + index * 60}ms` }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate text-[9px] font-semibold uppercase tracking-[0.15em] text-[#928873] sm:text-[10px] sm:tracking-[0.19em]">{stat.label}</p>
+              <span aria-hidden="true" className={`text-base ${stat.accent}`}>{stat.icon}</span>
+            </div>
+            <p className="mt-2 truncate font-[var(--font-display)] text-3xl text-[#fff5d9]">{stat.value}</p>
+            <p className="mt-1 truncate text-[10px] text-[#827864] sm:text-xs">{stat.note}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="dashboard-enter" style={{ animationDelay: "200ms" }} aria-labelledby="upcoming-events-heading">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.2em] text-[#a79a7d]">Your creative calendar</p>
-            <h1 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="upcoming-events-heading">Upcoming events</h1>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#a79a7d]">Your creative calendar</p>
+            <h2 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="upcoming-events-heading">Upcoming events</h2>
           </div>
-          <Link className="text-xs font-semibold uppercase tracking-[0.15em] text-[#f0ddab] underline underline-offset-4" href="/events">
-            Browse public event calendar
+          <Link className="group inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#f0ddab] underline decoration-[#d9af57]/40 underline-offset-4 transition hover:text-white" href="/events">
+            Browse all events <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
           </Link>
-        </div>
-        <div className="mb-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-[#d9af57]/20 bg-gradient-to-br from-[#d9af57]/[0.1] to-[#10100f] p-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Events registered</p>
-            <p className="mt-2 font-[var(--font-display)] text-3xl text-[#f5d99a]">{visibleRegistrations.length}</p>
-          </div>
-          <div className="rounded-xl border border-white/[0.07] bg-[#10100f] p-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Coming up</p>
-            <p className="mt-2 font-[var(--font-display)] text-3xl text-[#f0e6ce]">{upcomingEvents.length}</p>
-          </div>
-          <div className="rounded-xl border border-white/[0.07] bg-[#10100f] p-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Your workspace</p>
-            <p className="mt-2 text-sm text-[#d8c8a2]">{user?.name ?? "Artist"}</p>
-            <p className="mt-1 truncate text-xs text-[#827864]">{user?.email}</p>
-          </div>
         </div>
         {eventsError && (
           <p className="mb-4 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{eventsError}</p>
         )}
         {eventsLoading ? (
-          <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">Loading upcoming events...</p>
-        ) : upcomingEvents.length === 0 ? (
-          <div className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">No upcoming events just yet.</div>
+          <p className="dashboard-enter rounded-2xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">Loading upcoming events...</p>
+        ) : availableEvents.length === 0 ? (
+          <div className="dashboard-enter rounded-2xl border border-dashed border-[#d9af57]/20 bg-[radial-gradient(ellipse_at_top,rgba(217,175,87,0.07),transparent_70%),#10100f] p-7 text-sm leading-6 text-[#a99b7e]">
+            {upcomingEvents.length > 0
+              ? "You are registered for all upcoming events."
+              : "No upcoming events just yet."}
+          </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
-            {upcomingEvents.map((event) => (
-              <article className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#10100f]" key={event.id}>
+            {availableEvents.map((event, index) => (
+              <article className="dashboard-enter dashboard-card-hover overflow-hidden rounded-2xl border border-white/[0.08] bg-[linear-gradient(145deg,#15130f,#0e0e0d_70%)]" key={event.id} style={{ animationDelay: `${220 + Math.min(index, 5) * 80}ms` }}>
                 <div className="border-b border-white/[0.06] bg-[radial-gradient(circle_at_top_right,rgba(217,175,87,0.12),transparent_45%),linear-gradient(90deg,#19160f,#10100f)] p-5">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">{event.type}</p>
                   <h2 className="mt-2 font-[var(--font-display)] text-2xl text-[#f7ebc0]">{event.title}</h2>
@@ -610,57 +609,86 @@ export function DashboardHome() {
           </div>
         )}
       </section>
-      <div className="mb-5">
-        <p className="text-[9px] uppercase tracking-[0.2em] text-[#a79a7d]">Your event history</p>
-        <h2 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="my-registrations-heading">
-          My registrations <span className="text-[#d9af57]">({visibleRegistrations.length})</span>
-        </h2>
-      </div>
+      <section className="dashboard-enter" style={{ animationDelay: "260ms" }} aria-labelledby="my-registrations-heading">
+        <div className="mb-5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#a79a7d]">Your event history</p>
+          <h2 className="mt-1 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="my-registrations-heading">
+            My registrations <span className="text-[#d9af57]">({visibleRegistrations.length})</span>
+          </h2>
+        </div>
       {(error || storageError) && (
         <p className="mb-4 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{error || storageError}</p>
       )}
-      {loading ? (
-        <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">Loading registrations...</p>
+      {registrationLoading ? (
+        <p className="rounded-2xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]" role="status">Loading registrations...</p>
       ) : visibleRegistrations.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">No event registrations yet.</div>
-      ) : activeRegistration ? (
-        <div className="dashboard-card-hover rounded-2xl border border-white/[0.08] bg-[linear-gradient(140deg,#14130f,#10100f_65%)] p-5 sm:p-7" aria-roledescription="carousel" aria-label="Your registrations">
-          <article key={activeRegistration.id} className="dashboard-enter">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#d9af57]">Registration confirmed</p>
-                <h3 className="mt-2 break-words font-[var(--font-display)] text-3xl text-[#fff5d9]">{activeRegistration.eventName}</h3>
-                <p className="mt-2 text-xs text-[#827864]">Registered as {activeRegistration.name}</p>
-                {activeRegistration.skillNames && activeRegistration.skillNames.length > 0 && (
-                  <p className="mt-3 text-xs text-[#d2b46a]">Performing: {activeRegistration.skillNames.join(" · ")}</p>
-                )}
-                {activeRegistration.willPerform === false ? (
-                  <p className="mt-3 text-xs text-red-200">The event team has marked you as not performing for this event.</p>
-                ) : activeRegistration.eventStartsAt && (
-                  <p className="mt-3 text-xs text-emerald-200">
-                    {currentTime !== null && new Date(activeRegistration.eventStartsAt).getTime() < currentTime ? "Performed" : "Performing"}
-                  </p>
-                )}
-                <time className="mt-4 block text-[10px] text-[#827864]" dateTime={activeRegistration.createdAt}>
-                  Registered {new Date(activeRegistration.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
-                </time>
-                {activeRegistration.eventId && (
-                  <Link className="mt-5 inline-flex min-h-10 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f0ddab] underline underline-offset-4" href={`/events/${activeRegistration.eventId}`}>
-                    Event details
-                  </Link>
-                )}
-              </div>
-              {visibleRegistrations.length > 1 && (
-                <div className="flex shrink-0 items-center gap-2" aria-label="Registration carousel controls">
-                  <button aria-label="Previous registration" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50" onClick={() => moveRegistration(-1)} type="button">←</button>
-                  <span className="min-w-12 text-center text-xs tabular-nums text-[#a99b7e]" aria-live="polite">{activeRegistrationIndex + 1} / {visibleRegistrations.length}</span>
-                  <button aria-label="Next registration" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.1] text-[#f0ddab] transition hover:border-[#d9af57]/50" onClick={() => moveRegistration(1)} type="button">→</button>
+        <div className="rounded-2xl border border-dashed border-[#d9af57]/20 bg-[#10100f] p-7 text-sm leading-6 text-[#a99b7e]">No event registrations yet. Your confirmed performances will appear here.</div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {visibleRegistrations.map((registration, index) => {
+            const isPast = Boolean(registration.eventStartsAt) &&
+              currentTime !== null &&
+              new Date(registration.eventStartsAt!).getTime() < currentTime;
+            const isNotPerforming = registration.willPerform === false;
+            return (
+              <article
+                className="dashboard-enter dashboard-card-hover rounded-2xl border border-white/[0.08] bg-[linear-gradient(145deg,#15130f,#0e0e0d_70%)] p-5"
+                key={registration.id}
+                style={{ animationDelay: `${Math.min(index, 5) * 60}ms` }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#d9af57]">
+                      {isNotPerforming ? "Not performing" : isPast ? "Completed" : "Registered"}
+                    </p>
+                    <h3 className="mt-2 break-words font-[var(--font-display)] text-2xl text-[#fff5d9]">{registration.eventName}</h3>
+                  </div>
+                  <span aria-hidden="true" className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${isNotPerforming ? "border-red-300/20 bg-red-950/20 text-red-200" : isPast ? "border-white/[0.08] bg-white/[0.03] text-[#c1b596]" : "border-emerald-300/20 bg-emerald-950/20 text-emerald-200"}`}>
+                    {isNotPerforming ? "×" : isPast ? "✓" : "◷"}
+                  </span>
                 </div>
-              )}
-            </div>
-          </article>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-4">
+                  <div>
+                    {registration.skillNames && registration.skillNames.length > 0 && (
+                      <p className="text-xs text-[#d2b46a]">Performing: {registration.skillNames.join(" · ")}</p>
+                    )}
+                    <time className="mt-2 block text-[10px] text-[#827864]" dateTime={registration.createdAt}>
+                      Registered {new Date(registration.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                    </time>
+                    {registration.eventStartsAt && (
+                      <time className="mt-1 block text-[10px] text-[#a99b7e]" dateTime={registration.eventStartsAt}>
+                        Event {new Date(registration.eventStartsAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                      </time>
+                    )}
+                  </div>
+                  {(typeof registration.eventPrice === "number" || registration.paymentStatus) && (
+                    <p className="text-right text-[10px] text-[#b9ab8c]">
+                      {typeof registration.eventPrice === "number"
+                        ? new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(registration.eventPrice)
+                        : null}
+                      {registration.paymentStatus && (
+                        <span className="mt-1 block text-[#d2b46a]">
+                          {registration.paymentStatus === "paid"
+                            ? "Paid"
+                            : registration.paymentStatus === "due"
+                              ? "Due at event"
+                              : "No payment required"}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {registration.eventId && (
+                    <Link className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/[0.1] px-4 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#e4d9bc] transition hover:border-[#d9af57]/45 hover:text-white" href={`/events/${registration.eventId}`}>
+                      Event details <span aria-hidden="true">→</span>
+                    </Link>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
-      ) : null}
+      )}
+    </section>
     </section>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -12,7 +13,8 @@ type EventForm = {
   title: string;
   description: string;
   type: string;
-  startsAt: string;
+  dates: string[];
+  posterUrl: string;
   location: string;
   city: string;
   price: string;
@@ -27,7 +29,8 @@ const emptyForm: EventForm = {
   title: "",
   description: "",
   type: "",
-  startsAt: "",
+  dates: [""],
+  posterUrl: "",
   location: "",
   city: "",
   price: "0",
@@ -50,6 +53,9 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     typeof event.description === "string" &&
     typeof event.type === "string" &&
     typeof event.startsAt === "string" &&
+    Array.isArray(event.dates) &&
+    event.dates.every((date) => typeof date === "string") &&
+    typeof event.posterUrl === "string" &&
     typeof event.location === "string" &&
     typeof event.city === "string" &&
     typeof event.price === "number" &&
@@ -107,6 +113,12 @@ function isManagedSponsor(value: unknown): value is ManagedSponsor {
     typeof sponsor.details === "string" &&
     typeof sponsor.website === "string" &&
     typeof sponsor.logoUrl === "string" &&
+    Array.isArray(sponsor.links) &&
+    sponsor.links.every((link) =>
+      link &&
+      typeof link.label === "string" &&
+      typeof link.url === "string",
+    ) &&
     typeof sponsor.isWebsiteSponsor === "boolean" &&
     typeof sponsor.slug === "string" &&
     typeof sponsor.createdAt === "string" &&
@@ -124,6 +136,7 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
   const [sponsorsLoading, setSponsorsLoading] = useState(true);
   const [sponsorsError, setSponsorsError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -203,7 +216,8 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             title: event.title,
             description: event.description,
             type: event.type,
-            startsAt: toLocalDateTime(event.startsAt),
+            dates: (event.dates.length ? event.dates : [event.startsAt]).map(toLocalDateTime),
+            posterUrl: event.posterUrl,
             location: event.location,
             city: event.city,
             price: String(event.price),
@@ -231,17 +245,51 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  async function uploadPoster(file: File | undefined) {
+    if (!file) return;
+    setUploadingPoster(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.set("poster", file);
+      const response = await fetch("/api/admin/events/poster", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await parseResponse(response);
+      if (!response.ok) throw new Error(responseError(result, "Could not upload the event poster."));
+      if (!result || typeof result !== "object" || !("posterUrl" in result) ||
+          typeof result.posterUrl !== "string") {
+        throw new Error("The poster upload returned an invalid response.");
+      }
+      updateField("posterUrl", result.posterUrl);
+    } catch (cause) {
+      console.error("Could not upload the event poster.", cause);
+      setError(cause instanceof Error ? cause.message : "Could not upload the event poster.");
+    } finally {
+      setUploadingPoster(false);
+    }
+  }
+
   async function saveEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError("");
 
     try {
-      if (form.startsAt.slice(0, 10) < todayInIndia()) {
-        throw new Error("Event date cannot be before today.");
+      if (form.dates.length === 0 || form.dates.length > 20) {
+        throw new Error("Add between 1 and 20 event dates.");
       }
-      const startsAt = new Date(form.startsAt);
-      if (!Number.isFinite(startsAt.getTime())) throw new Error("Enter a valid event date and time.");
+      const dates = form.dates.map((value) => {
+        if (value.slice(0, 10) < todayInIndia()) {
+          throw new Error("Event dates cannot be before today.");
+        }
+        const date = new Date(value);
+        if (!value || !Number.isFinite(date.getTime())) {
+          throw new Error("Enter a valid event date and time for each date.");
+        }
+        return date.toISOString();
+      });
       const price = Number(form.price);
       const capacity = form.capacity.trim() ? Number(form.capacity) : null;
       const response = await fetch(
@@ -251,7 +299,8 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...form,
-            startsAt: startsAt.toISOString(),
+            dates,
+            startsAt: dates[0],
             price,
             capacity,
           }),
@@ -307,10 +356,78 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
               Event type
               <input className={inputClass} maxLength={60} onChange={(event) => updateField("type", event.target.value)} placeholder="Music, theatre, workshop..." required value={form.type} />
             </label>
-            <label className={labelClass}>
-              Date and time
-              <input className={inputClass} min={`${todayInIndia()}T00:00`} onChange={(event) => updateField("startsAt", event.target.value)} required type="datetime-local" value={form.startsAt} />
-            </label>
+            <fieldset className="sm:col-span-2">
+              <legend className={labelClass}>Event dates and times</legend>
+              <p className="mt-1 text-xs text-[#827864]">Add every date the event will take place. Dates are shown together on the event page.</p>
+              <div className="mt-3 space-y-2">
+                {form.dates.map((date, index) => (
+                  <div className="flex items-center gap-2" key={index}>
+                    <label className="sr-only" htmlFor={`event-date-${index}`}>Event date {index + 1}</label>
+                    <input
+                      className={inputClass}
+                      id={`event-date-${index}`}
+                      min={`${todayInIndia()}T00:00`}
+                      onChange={(event) => updateField("dates", form.dates.map((value, dateIndex) =>
+                        dateIndex === index ? event.target.value : value,
+                      ))}
+                      required
+                      type="datetime-local"
+                      value={date}
+                    />
+                    {form.dates.length > 1 && (
+                      <button
+                        aria-label={`Remove event date ${index + 1}`}
+                        className="min-h-11 shrink-0 rounded-xl border border-white/[0.09] px-3 text-xs text-[#b9ab8c] hover:border-red-400/40 hover:text-red-200"
+                        onClick={() => updateField("dates", form.dates.filter((_, dateIndex) => dateIndex !== index))}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                className="mt-3 min-h-10 rounded-xl border border-[#d9af57]/30 px-3 text-xs text-[#f0ddab] transition hover:border-[#d9af57]/60 disabled:opacity-50"
+                disabled={form.dates.length >= 20}
+                onClick={() => updateField("dates", [...form.dates, ""])}
+                type="button"
+              >
+                + Add another date
+              </button>
+            </fieldset>
+            <div className="sm:col-span-2">
+              <label className={labelClass} htmlFor="event-poster">Event poster</label>
+              <p className="mt-1 text-xs text-[#827864]">Upload a JPEG, PNG, or WebP poster (up to 5 MB).</p>
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-[#d9af57] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#121212]`}
+                disabled={uploadingPoster}
+                id="event-poster"
+                onChange={(event) => void uploadPoster(event.target.files?.[0])}
+                type="file"
+              />
+              {uploadingPoster && <p className="mt-2 text-xs text-[#b9ab8c]" role="status">Uploading poster...</p>}
+              {form.posterUrl && (
+                <div className="mt-3 flex items-start gap-3">
+                  <Image
+                    alt={`${form.title || "Event"} poster preview`}
+                    className="h-40 w-28 rounded-xl border border-white/[0.08] object-cover"
+                    height={320}
+                    src={form.posterUrl}
+                    unoptimized
+                    width={224}
+                  />
+                  <button
+                    className="min-h-10 rounded-xl border border-white/[0.09] px-3 text-xs text-[#b9ab8c] hover:border-red-400/40 hover:text-red-200"
+                    onClick={() => updateField("posterUrl", "")}
+                    type="button"
+                  >
+                    Remove poster
+                  </button>
+                </div>
+              )}
+            </div>
             <label className={`${labelClass} sm:col-span-2`}>
               Location
               <input className={inputClass} maxLength={240} onChange={(event) => updateField("location", event.target.value)} required value={form.location} />
@@ -421,8 +538,8 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             <Link className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/[0.09] px-4 text-xs text-[#b9ab8c] transition hover:border-white/20" href="/dashboard/events">
               Cancel
             </Link>
-            <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:cursor-wait disabled:opacity-60" disabled={saving || skillsLoading || sponsorsLoading || Boolean(skillsError) || Boolean(sponsorsError)} type="submit">
-              {skillsLoading || sponsorsLoading ? "Loading event options..." : saving ? "Saving..." : eventId ? "Save changes" : "Create event"}
+            <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:cursor-wait disabled:opacity-60" disabled={saving || uploadingPoster || skillsLoading || sponsorsLoading || Boolean(skillsError) || Boolean(sponsorsError)} type="submit">
+              {skillsLoading || sponsorsLoading ? "Loading event options..." : uploadingPoster ? "Uploading poster..." : saving ? "Saving..." : eventId ? "Save changes" : "Create event"}
             </button>
           </div>
         </form>

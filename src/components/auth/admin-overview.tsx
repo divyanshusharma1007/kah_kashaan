@@ -39,6 +39,8 @@ function isRecentEvent(value: unknown): value is RecentEvent {
     typeof event.title === "string" &&
     typeof event.type === "string" &&
     typeof event.startsAt === "string" &&
+    Array.isArray(event.dates) &&
+    event.dates.every((date) => typeof date === "string") &&
     typeof event.city === "string" &&
     (event.status === "published" || event.status === "draft") &&
     typeof event.createdAt === "string";
@@ -403,13 +405,13 @@ export function AdminOverview() {
                 {selectedEvent.title}
               </h3>
               <p className="mt-2 text-xs text-[#b9ab8c]">
-                {selectedEvent.type} · {formatDate(selectedEvent.startsAt)}
+                {selectedEvent.type} · {selectedEvent.dates.map(formatDate).join(" · ")}
               </p>
               {selectedEvent.city && <p className="mt-1 text-xs text-[#a99b7e]">{selectedEvent.city}</p>}
               <p className="mt-2 text-[10px] text-[#746d5b]">
                 Added {formatDate(selectedEvent.createdAt)}
                 <span className="px-2">·</span>
-                {getEventLifecycleStatus(selectedEvent.status, selectedEvent.startsAt) === "completed"
+                {getEventLifecycleStatus(selectedEvent.status, selectedEvent.dates) === "completed"
                   ? "Done"
                   : selectedEvent.status}
               </p>

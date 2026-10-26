@@ -105,7 +105,6 @@ export async function PUT(request: NextRequest) {
         return jsonResponse({ error: "Links need a name under 60 characters and a secure HTTPS URL." }, 400);
       }
     }
-
     const skills = await getArtistSkillsByIds(profile.skillIds);
     if (!skills) return jsonResponse({ error: "Performance skills are temporarily unavailable." }, 503);
     if (skills.length !== profile.skillIds.length) {

@@ -14,6 +14,9 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     typeof event.description === "string" &&
     typeof event.type === "string" &&
     typeof event.startsAt === "string" &&
+    Array.isArray(event.dates) &&
+    event.dates.length > 0 &&
+    event.dates.every((date) => typeof date === "string") &&
     typeof event.location === "string" &&
     typeof event.city === "string" &&
     typeof event.price === "number" &&
@@ -142,24 +145,28 @@ export function AdminEventsDashboard() {
 
   const upcomingCount = events.filter(
     (event) => event.status === "published" &&
-      getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "published",
+      getEventLifecycleStatus(event.status, event.dates, new Date(currentTime ?? 0)) === "published",
   ).length;
   const draftCount = events.filter((event) => event.status === "draft").length;
   const completedCount = events.filter((event) =>
-    getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "completed",
+    getEventLifecycleStatus(event.status, event.dates, new Date(currentTime ?? 0)) === "completed",
   ).length;
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return events
       .filter((event) => statusFilter === "all" ||
-        getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === statusFilter)
+        getEventLifecycleStatus(event.status, event.dates, new Date(currentTime ?? 0)) === statusFilter)
       .filter((event) => !normalizedQuery ||
         `${event.title} ${event.type} ${event.location} ${event.city} ${event.description} ${event.organizer}`
           .toLowerCase()
           .includes(normalizedQuery))
-      .sort((left, right) => sortOrder === "date"
-        ? left.startsAt.localeCompare(right.startsAt)
-        : right.createdAt.localeCompare(left.createdAt));
+      .sort((left, right) => {
+        if (sortOrder !== "date") return right.createdAt.localeCompare(left.createdAt);
+        const now = currentTime ?? 0;
+        const leftStart = left.dates.find((date) => new Date(date).getTime() >= now) ?? left.startsAt;
+        const rightStart = right.dates.find((date) => new Date(date).getTime() >= now) ?? right.startsAt;
+        return leftStart.localeCompare(rightStart);
+      });
   }, [events, query, statusFilter, sortOrder, currentTime]);
 
   return (
@@ -270,20 +277,20 @@ export function AdminEventsDashboard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[9px] uppercase tracking-[0.16em] text-[#d9af57]">{event.type}</span>
                   <span className={`rounded-full px-2 py-0.5 text-[9px] ${
-                    getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "completed"
+                    getEventLifecycleStatus(event.status, event.dates, new Date(currentTime ?? 0)) === "completed"
                       ? "bg-sky-950/40 text-sky-200"
                       : event.status === "published"
                       ? "bg-emerald-950/30 text-emerald-200"
                       : "bg-amber-950/30 text-amber-100"
                   }`}>
-                    {getEventLifecycleStatus(event.status, event.startsAt, new Date(currentTime ?? 0)) === "completed"
+                    {getEventLifecycleStatus(event.status, event.dates, new Date(currentTime ?? 0)) === "completed"
                       ? "Done"
                       : event.status}
                   </span>
                 </div>
                 <h2 className="mt-1 break-words text-sm font-medium text-[#f0e6ce]">{event.title}</h2>
                 <p className="mt-1 text-xs text-[#827864]">
-                  {formatDate(event.startsAt)} · {event.location}{event.city ? `, ${event.city}` : ""} · {formatPrice(event.price)}
+                  {formatDate(event.startsAt)}{event.dates.length > 1 ? ` · ${event.dates.length} dates` : ""} · {event.location}{event.city ? `, ${event.city}` : ""} · {formatPrice(event.price)}
                 </p>
                 {event.sponsorIds.length > 0 && (
                   <p className="mt-1 text-[10px] text-[#d2b46a]">

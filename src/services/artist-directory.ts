@@ -4,6 +4,12 @@ import { ObjectId, type Db } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { getMongoClient } from "@/services/mongodb";
 import { isValidEventId, listUpcomingPublishedEvents } from "@/services/events";
+import {
+  getApprovedArtistWritingSubmissions,
+  getApprovedWritingSubmissionsByEmails,
+  getArtistFeatureFee,
+  type ArtistWritingSubmission,
+} from "@/services/artist-content";
 
 export type ArtistRegistrationInput = {
   name: string;
@@ -26,6 +32,13 @@ export type ArtistProfileLink = {
   type: "book" | "social" | "website";
 };
 
+export type ArtistWritingSample = {
+  title: string;
+  format: "poem" | "book" | "article" | "essay" | "performance" | "other";
+  excerpt: string;
+  url: string;
+};
+
 export type ArtistProfileData = {
   name: string;
   email: string;
@@ -37,10 +50,11 @@ export type ArtistProfileData = {
   bio: string;
   skillIds: string[];
   links: ArtistProfileLink[];
+  writingSamples: ArtistWritingSample[];
   photoFileId: string | null;
 };
 
-export type ArtistProfileInput = Omit<ArtistProfileData, "photoFileId" | "name" | "email">;
+export type ArtistProfileInput = Omit<ArtistProfileData, "photoFileId" | "name" | "email" | "writingSamples">;
 
 export type ArtistDirectoryEntry = {
   name: string;
@@ -65,6 +79,8 @@ export type ArtistDirectoryEntry = {
     eventId?: string;
     eventStartsAt?: string;
     eventPrice?: number;
+    paymentMethod?: "razorpay" | "at-event" | "free";
+    paymentStatus?: "paid" | "due" | "not-required";
     willPerform: boolean;
     skillNames?: string[];
   }[];
@@ -90,13 +106,18 @@ type ArtistAccountDocument = {
   bio?: string;
   skillIds?: string[];
   links?: ArtistProfileLink[];
+  writingSamples?: ArtistWritingSample[];
   photoFileId?: string | null;
   isActive?: boolean;
   updatedAt?: Date;
   role?: string;
   emailVerified?: boolean;
   featuredStatus?: "not-requested" | "requested" | "featured" | "rejected";
+  featurePaymentStatus?: "unpaid" | "paid" | "free";
+  featureRequestedAt?: Date;
+  featurePaidAt?: Date;
   featureRejectedAt?: Date;
+  writingSubmissions?: ArtistWritingSubmission[];
   createdAt?: Date;
 };
 
@@ -107,7 +128,9 @@ export type PublicArtistProfile = {
   state: string;
   bio: string;
   skills: string[];
+  skillDetails: { name: string; description: string }[];
   links: ArtistProfileLink[];
+  writingSamples: ArtistWritingSample[];
   hasPhoto: boolean;
 };
 
@@ -236,11 +259,19 @@ export async function getArtistProfile(email: string): Promise<ArtistProfileData
           bio: 1,
           skillIds: 1,
           links: 1,
+          writingSamples: 1,
+          writingSubmissions: 1,
           photoFileId: 1,
         },
         collation: { locale: "en", strength: 2 },
       },
     );
+  const writingSamples = account
+    ? await getApprovedArtistWritingSubmissions(
+      (account.emailNormalized || account.email || email).toLowerCase(),
+    )
+    : [];
+  if (!writingSamples) return null;
   return {
     name: account?.name?.trim() || "",
     email: (account?.emailNormalized || account?.email || "").trim().toLowerCase(),
@@ -252,6 +283,7 @@ export async function getArtistProfile(email: string): Promise<ArtistProfileData
     bio: account?.bio?.trim() || "",
     skillIds: account?.skillIds?.filter((id) => typeof id === "string") || [],
     links: normalizeArtistProfileLinks(account?.links),
+    writingSamples,
     photoFileId: typeof account?.photoFileId === "string" ? account.photoFileId : null,
   };
 }
@@ -400,7 +432,14 @@ export async function revokeAdminAccount(
 
 export async function getArtistFeatureStatus(
   email: string,
-): Promise<{ status: FeaturedArtistStatus; profileId: string | null; retryAt: string | null } | null> {
+): Promise<{
+  status: FeaturedArtistStatus;
+  profileId: string | null;
+  retryAt: string | null;
+  feeRupees: number | null;
+  paymentStatus: "unpaid" | "paid" | "free" | null;
+  selectedWriteupCount: number;
+} | null> {
   const client = await getMongoClient();
   if (!client) return null;
   const databaseName = process.env.MONGODB_DB?.trim();
@@ -409,75 +448,33 @@ export async function getArtistFeatureStatus(
     .collection<ArtistAccountDocument>("users")
     .findOne(
       { role: "artist", $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }] },
-      { projection: { featuredStatus: 1, featureRejectedAt: 1 }, collation: { locale: "en", strength: 2 } },
+      {
+        projection: {
+          featuredStatus: 1,
+          featureRejectedAt: 1,
+          featurePaymentStatus: 1,
+          writingSubmissions: 1,
+        },
+        collation: { locale: "en", strength: 2 },
+      },
     );
   if (!artist) return null;
+  const feeRupees = await getArtistFeatureFee();
+  if (feeRupees === undefined) return null;
   const retryAt = artist.featureRejectedAt
     ? new Date(artist.featureRejectedAt.getTime() + FEATURE_REQUEST_COOLDOWN_MS)
     : null;
+  const selectedWriteupCount = artist.writingSubmissions?.filter((submission) =>
+    submission.selected === true,
+  ).length ?? 0;
   return {
     status: artist.featuredStatus ?? "not-requested",
     profileId: artist.featuredStatus === "featured" && artist._id ? artist._id.toHexString() : null,
     retryAt: retryAt?.toISOString() ?? null,
+    feeRupees,
+    paymentStatus: artist.featurePaymentStatus ?? null,
+    selectedWriteupCount,
   };
-}
-
-export async function requestArtistFeature(
-  email: string,
-): Promise<FeaturedArtistStatus | null | "not-found" | { status: "rejected"; retryAt: string }> {
-  const client = await getMongoClient();
-  if (!client) return null;
-  const databaseName = process.env.MONGODB_DB?.trim();
-  const users = client.db(databaseName || undefined).collection<ArtistAccountDocument>("users");
-  const artist = await users.findOne(
-    { role: "artist", $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }] },
-    { projection: { featuredStatus: 1, featureRejectedAt: 1 }, collation: { locale: "en", strength: 2 } },
-  );
-  if (!artist) return "not-found";
-  if (artist.featuredStatus === "featured") return "featured";
-  if (artist.featuredStatus === "requested") return "requested";
-  const now = new Date();
-  if (artist.featuredStatus === "rejected" && artist.featureRejectedAt) {
-    const retryAt = new Date(artist.featureRejectedAt.getTime() + FEATURE_REQUEST_COOLDOWN_MS);
-    if (retryAt > now) return { status: "rejected", retryAt: retryAt.toISOString() };
-  }
-  const updated = await users.updateOne(
-    {
-      $and: [
-        {
-          role: "artist",
-          $or: [{ emailNormalized: email.toLowerCase() }, { email: email.toLowerCase() }],
-        },
-        artist.featuredStatus === "rejected"
-          ? {
-            featuredStatus: "rejected",
-            $or: [
-              { featureRejectedAt: { $exists: false } },
-              { featureRejectedAt: { $lte: new Date(now.getTime() - FEATURE_REQUEST_COOLDOWN_MS) } },
-            ],
-          }
-          : {
-            $or: [
-              { featuredStatus: "not-requested" },
-              { featuredStatus: { $exists: false } },
-            ],
-          },
-      ],
-    },
-    {
-      $set: { featuredStatus: "requested", updatedAt: now },
-      $unset: { featureRejectedAt: "" },
-    },
-  );
-  if (updated.matchedCount === 0) {
-    const currentStatus = await getArtistFeatureStatus(email);
-    if (!currentStatus) return null;
-    if (currentStatus.status === "rejected" && currentStatus.retryAt) {
-      return { status: "rejected", retryAt: currentStatus.retryAt };
-    }
-    return currentStatus.status;
-  }
-  return "requested";
 }
 
 export async function setArtistFeatureDecision(
@@ -521,11 +518,14 @@ export async function listPublicFeaturedArtists(): Promise<PublicArtistProfile[]
     })
     .project<ArtistAccountDocument>({
       name: 1,
+      email: 1,
+      emailNormalized: 1,
       city: 1,
       state: 1,
       bio: 1,
       skillIds: 1,
       links: 1,
+      writingSubmissions: 1,
       photoFileId: 1,
     })
     .sort({ name: 1 })
@@ -534,12 +534,20 @@ export async function listPublicFeaturedArtists(): Promise<PublicArtistProfile[]
     artist.skillIds?.filter((id): id is string => /^[\da-f]{24}$/i.test(id)) ?? [],
   ))];
   const skillDocs = skillIds.length > 0
-    ? await database.collection<{ _id: ObjectId; name: string }>("artistSkills")
+    ? await database.collection<{ _id: ObjectId; name: string; description: string }>("artistSkills")
       .find({ _id: { $in: skillIds.map((id) => new ObjectId(id)) } })
-      .project<{ _id: ObjectId; name: string }>({ name: 1 })
+      .project<{ _id: ObjectId; name: string; description: string }>({ name: 1, description: 1 })
       .toArray()
     : [];
   const skillNames = new Map(skillDocs.map((skill) => [skill._id.toHexString(), skill.name]));
+  const skillDetails = new Map(skillDocs.map((skill) => [
+    skill._id.toHexString(),
+    { name: skill.name, description: skill.description?.trim() || "" },
+  ]));
+  const writingSamplesByEmail = await getApprovedWritingSubmissionsByEmails(
+    artists.map((artist) => artist.emailNormalized || artist.email || ""),
+  );
+  if (!writingSamplesByEmail) return null;
   return artists.flatMap((artist) => artist._id ? [{
     id: artist._id.toHexString(),
     name: artist.name?.trim() || "Artist",
@@ -550,7 +558,14 @@ export async function listPublicFeaturedArtists(): Promise<PublicArtistProfile[]
       const name = skillNames.get(id);
       return name ? [name] : [];
     }) ?? [],
+    skillDetails: artist.skillIds?.flatMap((id) => {
+      const skill = skillDetails.get(id);
+      return skill ? [skill] : [];
+    }) ?? [],
     links: normalizeArtistProfileLinks(artist.links),
+    writingSamples: writingSamplesByEmail.get(
+      (artist.emailNormalized || artist.email || "").toLowerCase(),
+    ) ?? [],
     hasPhoto: typeof artist.photoFileId === "string",
   }] : []);
 }
@@ -569,17 +584,37 @@ export async function getPublicFeaturedArtist(id: string): Promise<PublicArtistP
       isActive: { $ne: false },
       emailVerified: { $ne: false },
     },
-    { projection: { name: 1, city: 1, state: 1, bio: 1, skillIds: 1, links: 1, photoFileId: 1 } },
+    {
+      projection: {
+        name: 1,
+        email: 1,
+        emailNormalized: 1,
+        city: 1,
+        state: 1,
+        bio: 1,
+        skillIds: 1,
+        links: 1,
+        photoFileId: 1,
+      },
+    },
   );
   if (!artist?._id) return undefined;
+  const writingSamples = await getApprovedArtistWritingSubmissions(
+    (artist.emailNormalized || artist.email || "").toLowerCase(),
+  );
+  if (!writingSamples) return null;
   const skillIds = artist.skillIds?.filter((skillId): skillId is string => /^[\da-f]{24}$/i.test(skillId)) ?? [];
   const skills = skillIds.length > 0
-    ? await database.collection<{ _id: ObjectId; name: string }>("artistSkills")
+    ? await database.collection<{ _id: ObjectId; name: string; description: string }>("artistSkills")
       .find({ _id: { $in: skillIds.map((skillId) => new ObjectId(skillId)) } })
-      .project<{ _id: ObjectId; name: string }>({ name: 1 })
+      .project<{ _id: ObjectId; name: string; description: string }>({ name: 1, description: 1 })
       .toArray()
     : [];
   const skillNames = new Map(skills.map((skill) => [skill._id.toHexString(), skill.name]));
+  const skillDetails = new Map(skills.map((skill) => [
+    skill._id.toHexString(),
+    { name: skill.name, description: skill.description?.trim() || "" },
+  ]));
   return {
     id: artist._id.toHexString(),
     name: artist.name?.trim() || "Artist",
@@ -590,7 +625,12 @@ export async function getPublicFeaturedArtist(id: string): Promise<PublicArtistP
       const name = skillNames.get(skillId);
       return name ? [name] : [];
     }),
+    skillDetails: skillIds.flatMap((skillId) => {
+      const skill = skillDetails.get(skillId);
+      return skill ? [skill] : [];
+    }),
     links: normalizeArtistProfileLinks(artist.links),
+    writingSamples,
     hasPhoto: typeof artist.photoFileId === "string",
   };
 }
@@ -809,6 +849,16 @@ export async function listArtistDirectory(): Promise<ArtistDirectoryEntry[] | nu
       ...(registration.eventId ? { eventId: registration.eventId } : {}),
       ...(event ? { eventStartsAt: event.startsAt.toISOString() } : {}),
       ...(typeof registration.eventPrice === "number" ? { eventPrice: registration.eventPrice } : {}),
+      ...(registration.paymentMethod === "razorpay" ||
+        registration.paymentMethod === "at-event" ||
+        registration.paymentMethod === "free"
+        ? { paymentMethod: registration.paymentMethod }
+        : {}),
+      ...(registration.paymentStatus === "paid" ||
+        registration.paymentStatus === "due" ||
+        registration.paymentStatus === "not-required"
+        ? { paymentStatus: registration.paymentStatus }
+        : {}),
       willPerform: registration.willPerform !== false,
       ...(registration.skillNames ? { skillNames: registration.skillNames } : {}),
     };
@@ -884,6 +934,16 @@ export async function listRegistrationsForArtist(
       ...(registration.eventId ? { eventId: registration.eventId } : {}),
       ...(event ? { eventStartsAt: event.startsAt.toISOString() } : {}),
       ...(typeof registration.eventPrice === "number" ? { eventPrice: registration.eventPrice } : {}),
+      ...(registration.paymentMethod === "razorpay" ||
+        registration.paymentMethod === "at-event" ||
+        registration.paymentMethod === "free"
+        ? { paymentMethod: registration.paymentMethod }
+        : {}),
+      ...(registration.paymentStatus === "paid" ||
+        registration.paymentStatus === "due" ||
+        registration.paymentStatus === "not-required"
+        ? { paymentStatus: registration.paymentStatus }
+        : {}),
       willPerform: registration.willPerform !== false,
       ...(registration.skillNames ? { skillNames: registration.skillNames } : {}),
     };

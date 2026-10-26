@@ -12,6 +12,7 @@ const emptySponsor: SponsorInput = {
   details: "",
   website: "",
   logoUrl: "",
+  links: [],
   isWebsiteSponsor: false,
 };
 
@@ -28,6 +29,12 @@ function isSponsor(value: unknown): value is ManagedSponsor {
     typeof sponsor.details === "string" &&
     typeof sponsor.website === "string" &&
     typeof sponsor.logoUrl === "string" &&
+    Array.isArray(sponsor.links) &&
+    sponsor.links.every((link) =>
+      link &&
+      typeof link.label === "string" &&
+      typeof link.url === "string",
+    ) &&
     typeof sponsor.isWebsiteSponsor === "boolean" &&
     typeof sponsor.createdAt === "string" &&
     typeof sponsor.updatedAt === "string";
@@ -53,6 +60,7 @@ export function AdminSponsorsDashboard() {
   const [editingId, setEditingId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -94,6 +102,9 @@ export function AdminSponsorsDashboard() {
       details: sponsor.details,
       website: sponsor.website,
       logoUrl: sponsor.logoUrl,
+      links: sponsor.links.length
+        ? sponsor.links
+        : sponsor.website ? [{ label: "Website", url: sponsor.website }] : [],
       isWebsiteSponsor: sponsor.isWebsiteSponsor,
     });
     setError("");
@@ -103,6 +114,33 @@ export function AdminSponsorsDashboard() {
   function resetForm() {
     setEditingId("");
     setForm(emptySponsor);
+  }
+
+  async function uploadLogo(file: File | undefined) {
+    if (!file) return;
+    setUploadingLogo(true);
+    setError("");
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.set("logo", file);
+      const response = await fetch("/api/admin/sponsors/logo", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await readResponse(response);
+      if (!response.ok) throw new Error(errorMessage(result, "Could not upload the sponsor logo."));
+      if (!result || typeof result !== "object" || !("logoUrl" in result) ||
+          typeof result.logoUrl !== "string") {
+        throw new Error("The logo upload returned an invalid response.");
+      }
+      setForm((current) => ({ ...current, logoUrl: result.logoUrl }));
+    } catch (cause) {
+      console.error("Could not upload the sponsor logo.", cause);
+      setError(cause instanceof Error ? cause.message : "Could not upload the sponsor logo.");
+    } finally {
+      setUploadingLogo(false);
+    }
   }
 
   async function saveSponsor(event: FormEvent<HTMLFormElement>) {
@@ -116,7 +154,10 @@ export function AdminSponsorsDashboard() {
         {
           method: editingId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            website: form.links.find((link) => link.label.trim().toLowerCase() === "website")?.url ?? "",
+          }),
         },
       );
       const result = await readResponse(response);
@@ -194,21 +235,110 @@ export function AdminSponsorsDashboard() {
           Details
           <textarea className={`${inputClass} min-h-24 resize-y py-3`} maxLength={3000} onChange={(event) => setForm((current) => ({ ...current, details: event.target.value }))} value={form.details} />
         </label>
-        <label className="text-xs text-[#cbbd9f]">
-          Sponsor website URL
-          <input className={inputClass} maxLength={500} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} placeholder="https://example.org" type="url" value={form.website} />
-        </label>
-        <label className="text-xs text-[#cbbd9f]">
-          Logo image URL
-          <input className={inputClass} maxLength={500} onChange={(event) => setForm((current) => ({ ...current, logoUrl: event.target.value }))} placeholder="https://example.org/logo.png" type="url" value={form.logoUrl} />
-        </label>
+        <fieldset className="sm:col-span-2">
+          <legend className="text-xs font-medium text-[#cbbd9f]">Sponsor links</legend>
+          <p className="mt-1 text-xs text-[#827864]">Add a website, Instagram, YouTube, or any other public link.</p>
+          <div className="mt-3 space-y-3">
+            {form.links.map((link, index) => (
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)_auto]" key={index}>
+                <label className="text-[10px] text-[#a99b7e]">
+                  Link name
+                  <input
+                    className={inputClass}
+                    maxLength={50}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      links: current.links.map((item, linkIndex) =>
+                        linkIndex === index ? { ...item, label: event.target.value } : item,
+                      ),
+                    }))}
+                    placeholder="Website, Instagram..."
+                    required
+                    value={link.label}
+                  />
+                </label>
+                <label className="text-[10px] text-[#a99b7e]">
+                  Link URL
+                  <input
+                    className={inputClass}
+                    maxLength={500}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      links: current.links.map((item, linkIndex) =>
+                        linkIndex === index ? { ...item, url: event.target.value } : item,
+                      ),
+                    }))}
+                    placeholder="https://..."
+                    required
+                    type="url"
+                    value={link.url}
+                  />
+                </label>
+                <button
+                  aria-label={`Remove sponsor link ${index + 1}`}
+                  className="mt-5 min-h-11 rounded-xl border border-white/[0.09] px-3 text-xs text-[#b9ab8c] hover:border-red-400/40 hover:text-red-200"
+                  onClick={() => setForm((current) => ({
+                    ...current,
+                    links: current.links.filter((_, linkIndex) => linkIndex !== index),
+                  }))}
+                  type="button"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            className="mt-3 min-h-10 rounded-xl border border-[#d9af57]/30 px-3 text-xs text-[#f0ddab] transition hover:border-[#d9af57]/60 disabled:opacity-50"
+            disabled={form.links.length >= 20}
+            onClick={() => setForm((current) => ({
+              ...current,
+              links: [...current.links, { label: "", url: "" }],
+            }))}
+            type="button"
+          >
+            + Add a link
+          </button>
+        </fieldset>
+        <div className="sm:col-span-2">
+          <label className="text-xs text-[#cbbd9f]" htmlFor="sponsor-logo">Sponsor logo</label>
+          <p className="mt-1 text-xs text-[#827864]">Upload a JPEG, PNG, or WebP logo smaller than 5 MB.</p>
+          <input
+            accept="image/jpeg,image/png,image/webp"
+            className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-[#d9af57] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#121212]`}
+            disabled={uploadingLogo}
+            id="sponsor-logo"
+            onChange={(event) => void uploadLogo(event.target.files?.[0])}
+            type="file"
+          />
+          {uploadingLogo && <p className="mt-2 text-xs text-[#b9ab8c]" role="status">Uploading logo...</p>}
+          {form.logoUrl && (
+            <div className="mt-3 flex items-center gap-3">
+              <Image
+                alt={`${form.name || "Sponsor"} logo preview`}
+                className="h-16 w-16 rounded-xl border border-white/[0.08] bg-white object-contain p-1"
+                height={64}
+                src={form.logoUrl}
+                unoptimized
+                width={64}
+              />
+              <button
+                className="min-h-10 rounded-xl border border-white/[0.09] px-3 text-xs text-[#b9ab8c] hover:border-red-400/40 hover:text-red-200"
+                onClick={() => setForm((current) => ({ ...current, logoUrl: "" }))}
+                type="button"
+              >
+                Remove logo
+              </button>
+            </div>
+          )}
+        </div>
         <label className="flex min-h-11 items-center gap-3 text-xs text-[#cbbd9f] sm:col-span-2">
           <input checked={form.isWebsiteSponsor} className="h-4 w-4 accent-[#d9af57]" onChange={(event) => setForm((current) => ({ ...current, isWebsiteSponsor: event.target.checked }))} type="checkbox" />
           Show on the public website sponsor directory
         </label>
         <div className="flex flex-wrap gap-2 border-t border-white/[0.06] pt-4 sm:col-span-2">
-          <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60" disabled={saving} type="submit">
-            {saving ? "Saving..." : editingId ? "Save sponsor" : "Add sponsor"}
+          <button className="min-h-11 rounded-xl bg-[#d9af57] px-5 text-xs font-semibold text-[#121212] transition hover:bg-[#f2d98b] disabled:opacity-60" disabled={saving || uploadingLogo} type="submit">
+            {uploadingLogo ? "Uploading logo..." : saving ? "Saving..." : editingId ? "Save sponsor" : "Add sponsor"}
           </button>
           {editingId && (
             <button className="min-h-11 rounded-xl border border-white/[0.09] px-4 text-xs text-[#b9ab8c] hover:border-white/20" onClick={resetForm} type="button">
@@ -233,7 +363,7 @@ export function AdminSponsorsDashboard() {
               <article className="flex min-w-0 flex-col gap-4 rounded-2xl border border-white/[0.07] bg-[#10100f] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5" key={sponsor.id}>
                 <div className="flex min-w-0 items-center gap-3">
                   {sponsor.logoUrl ? (
-                    <Image alt={`${sponsor.name} logo`} className="h-12 w-12 shrink-0 rounded-xl border border-white/[0.08] bg-white object-contain p-1" height={48} src={sponsor.logoUrl} unoptimized width={48} />
+                    <Image alt={`${sponsor.name} logo`} className="h-12 w-12 shrink-0 rounded-xl border border-white/[0.08] bg-white object-contain p-1" height={48} loading="lazy" src={sponsor.logoUrl} unoptimized width={48} />
                   ) : (
                     <span aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#d9af57]/20 bg-[#d9af57]/[0.07] font-[var(--font-display)] text-xl text-[#edcf81]">
                       {sponsor.name.trim().charAt(0).toUpperCase()}

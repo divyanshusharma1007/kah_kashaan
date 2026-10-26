@@ -20,6 +20,7 @@ export type RecentEvent = {
   title: string;
   type: string;
   startsAt: string;
+  dates: string[];
   city: string;
   status: EventStatus;
   createdAt: string;
@@ -98,6 +99,7 @@ type EventDocument = {
   title: string;
   type: string;
   startsAt: Date;
+  dates?: Date[];
   city?: string;
   status: EventStatus;
   price: number;
@@ -173,10 +175,16 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       .limit(6)
       .toArray(),
     events.countDocuments({}),
-    events.countDocuments({ status: "published", startsAt: { $gte: today } }),
+    events.countDocuments({
+      status: "published",
+      $or: [
+        { startsAt: { $gte: today } },
+        { dates: { $elemMatch: { $gte: today } } },
+      ],
+    }),
     events
       .find({})
-      .project<EventDocument>({ title: 1, type: 1, startsAt: 1, city: 1, status: 1, createdAt: 1 })
+      .project<EventDocument>({ title: 1, type: 1, startsAt: 1, dates: 1, city: 1, status: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
       .limit(10)
       .toArray(),
@@ -275,6 +283,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       title: event.title,
       type: event.type,
       startsAt: event.startsAt.toISOString(),
+      dates: (event.dates?.length ? event.dates : [event.startsAt]).map((date) => date.toISOString()),
       city: event.city ?? "",
       status: event.status,
       createdAt: event.createdAt.toISOString(),
