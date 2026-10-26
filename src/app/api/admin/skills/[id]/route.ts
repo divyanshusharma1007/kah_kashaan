@@ -6,6 +6,7 @@ import {
   parseArtistSkill,
   updateArtistSkill,
 } from "@/services/artist-skills";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 type SkillRouteContext = {
   params: Promise<{ id: string }>;
@@ -37,6 +38,7 @@ export async function PUT(request: NextRequest, context: SkillRouteContext) {
     const skill = await updateArtistSkill(id, parsed.data);
     if (skill === null) return jsonResponse({ error: "Skill management is temporarily unavailable." }, 503);
     if (!skill) return jsonResponse({ error: "Skill not found." }, 404);
+    await safelyNotifyAdmin("Skill updated", [`Skill: ${skill.name}`, `Skill ID: ${skill.id}`, "Action: Updated"]);
     return jsonResponse({ skill });
   } catch (error) {
     console.error("Could not update artist skill.", error);

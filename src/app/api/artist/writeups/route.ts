@@ -7,6 +7,7 @@ import {
   type ArtistWritingSubmissionInput,
 } from "@/services/artist-content";
 import type { ArtistWritingSample } from "@/services/artist-directory";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -86,6 +87,11 @@ export async function PUT(request: NextRequest) {
         error: "Use titles under 100 characters, excerpts under 1,200 characters, secure HTTPS links, and select no more than four writeups.",
       }, 400);
     }
+    await safelyNotifyAdmin("Artist writing portfolio submitted or updated", [
+      `Artist: ${user.name}`,
+      `Email: ${user.email}`,
+      `Writeups in portfolio: ${saved.length}`,
+    ]);
     return jsonResponse({ success: true, writeups: saved });
   } catch (error) {
     console.error("Could not save artist writing submissions.", error);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
 import { hasValidRequestOrigin } from "@/services/request-origin";
 import { createSponsor, listAdminSponsors, parseSponsorInput } from "@/services/sponsors";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
   try {
     const sponsor = await createSponsor(parsed.data);
     if (!sponsor) return jsonResponse({ error: "Sponsor management is unavailable. Check the database configuration." }, 503);
+    await safelyNotifyAdmin("Sponsor added", [`Sponsor: ${sponsor.name}`, `Sponsor ID: ${sponsor.id}`, "Action: Created"]);
     return jsonResponse({ sponsor }, 201);
   } catch (error) {
     console.error("Could not create sponsor.", error);

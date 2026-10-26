@@ -40,16 +40,18 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
     <SiteLayout navItems={navItems} logo={logo} content={heroContent}>
       <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <article className="rounded-[2rem] border border-[#d9af57]/20 bg-[#111111] p-6 sm:p-10">
-          {event.posterUrl && (
-            <Image
-              alt={`${event.title} event poster`}
-              className="mb-8 max-h-[32rem] w-full rounded-2xl border border-white/[0.08] object-contain sm:max-h-[40rem]"
-              height={1200}
-              preload
-              src={event.posterUrl}
-              unoptimized
-              width={900}
-            />
+          {event.posterUrl.trim() && (
+            <div className="mb-8 overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25 p-2 sm:p-4">
+              <Image
+                alt={`${event.title} event poster`}
+                className="mx-auto max-h-[32rem] w-auto max-w-full rounded-xl object-contain sm:max-h-[40rem]"
+                height={1200}
+                preload
+                src={event.posterUrl}
+                unoptimized
+                width={900}
+              />
+            </div>
           )}
           <p className="text-[10px] uppercase tracking-[0.3em] text-[#d9af57]">{event.type}</p>
           <h1 className="mt-4 break-words font-[var(--font-display)] text-4xl text-[#fff5d9] sm:text-6xl">{event.title}</h1>

@@ -6,6 +6,7 @@ import {
   listArtistSkills,
   parseArtistSkill,
 } from "@/services/artist-skills";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
   try {
     const skill = await createArtistSkill(parsed.data);
     if (!skill) return jsonResponse({ error: "Skill management is temporarily unavailable." }, 503);
+    await safelyNotifyAdmin("Skill added", [`Skill: ${skill.name}`, `Skill ID: ${skill.id}`, "Action: Created"]);
     return jsonResponse({ skill }, 201);
   } catch (error) {
     console.error("Could not create artist skill.", error);

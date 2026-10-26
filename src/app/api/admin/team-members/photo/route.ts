@@ -5,6 +5,7 @@ import { hasValidRequestOrigin } from "@/services/request-origin";
 import { ArtistPhotoStorageError, uploadArtistPhoto } from "@/services/artist-photo-storage";
 import { ImageKitPhotoError } from "@/services/imagekit";
 import { CloudinaryPhotoError } from "@/services/cloudinary";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const reference = await uploadArtistPhoto(photo, `team-member-${randomUUID()}@kah-kashaan.local`);
+    await safelyNotifyAdmin("Team member photo uploaded", ["An administrator uploaded a team member photo asset."]);
     return NextResponse.json({
       image: `/api/team-members/photo?reference=${encodeURIComponent(reference)}`,
     }, { headers: { "Cache-Control": "no-store" } });

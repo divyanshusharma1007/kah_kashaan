@@ -9,6 +9,7 @@ import {
 } from "@/services/auth-session";
 import { createGoogleAuthLogger } from "@/services/google-auth-logging";
 import { getMongoClient } from "@/services/mongodb";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 type GoogleTokenResponse = {
   id_token?: string;
@@ -217,6 +218,7 @@ export async function GET(request: NextRequest) {
         emailVerified: true,
         emailVerifiedAt: new Date(),
       });
+      await safelyNotifyAdmin("New account signup", [`Name: ${name}`, `Email: ${email}`, "Account type: Artist (Google)"]);
       logger.info("signup_succeeded", { intent });
       const sessionUser: SessionUser = { name, email, role: "artist", provider: "google" };
       const result = response(NextResponse.redirect(dashboardUrl()));

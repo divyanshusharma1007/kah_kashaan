@@ -6,6 +6,7 @@ import {
   type ArtistFeatureOrderDocument,
 } from "@/services/artist-content";
 import { getMongoClient } from "@/services/mongodb";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 import {
   captureRazorpayPayment,
   getRazorpayPayment,
@@ -105,6 +106,12 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error("Artist feature request was saved but its Razorpay order could not be marked completed.", error);
     }
+    await safelyNotifyAdmin("Paid artist feature request", [
+      `Artist: ${user.name}`,
+      `Email: ${user.email}`,
+      `Payment ID: ${paymentId}`,
+      "Status: Awaiting admin review",
+    ]);
     return jsonResponse({ success: true }, 201);
   } catch (error) {
     await orders.updateOne({ _id: orderId, status: "processing" }, { $set: { status: "created" } });

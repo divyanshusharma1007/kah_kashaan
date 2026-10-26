@@ -4,6 +4,7 @@ import { hasValidRequestOrigin } from "@/services/request-origin";
 import { createEvent, listAdminEvents, parseEventInput } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 import { listPublicSponsorsByIds } from "@/services/sponsors";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     }
     const event = await createEvent(parsed.data);
     if (!event) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);
+    await safelyNotifyAdmin("Event created", [`Event: ${event.title}`, `Event ID: ${event.id}`, "Action: Created"]);
     return jsonResponse({ event }, 201);
   } catch (error) {
     console.error("Could not create event.", error);

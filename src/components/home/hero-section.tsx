@@ -73,22 +73,34 @@ export function HeroSection({ content, stats, featuredEvent, upcomingEvents }: H
             </div>
 
             <div className="mt-5 space-y-3">
-              {upcomingEvents.map((event) => (
+              {upcomingEvents.slice(0, 3).map((event) => (
                 <div
                   key={event.title}
-                  className="flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-2xl border border-[#d9af57]/15 bg-[#181818] p-3"
+                  className="flex min-w-0 items-center gap-3 rounded-2xl border border-[#d9af57]/15 bg-[#181818] p-3"
                 >
-                  <div className="min-w-0">
-                    <div className="text-[10px] uppercase tracking-[0.25em] text-[#d2b46a]">{event.date}</div>
-                    <div className="mt-1 break-words font-medium text-[#f7ebc1]">{event.title}</div>
+                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#d9af57]/25 bg-[radial-gradient(circle_at_top,rgba(217,175,87,0.25),transparent_70%),#111] text-center">
+                    <span>
+                      <span className="block font-[var(--font-display)] text-xl leading-none text-[#f5d99a]">{event.date.split(" ")[0]}</span>
+                      <span className="mt-1 block text-[8px] uppercase tracking-[0.12em] text-[#d8c89f]">{event.date.split(" ")[1]}</span>
+                    </span>
                   </div>
-                  <div className="ml-auto max-w-full break-words text-right text-[9px] uppercase tracking-[0.15em] text-[#cbbd9a] sm:text-[10px] sm:tracking-[0.2em]">
-                    <div>{event.type}</div>
-                    <div className="mt-1">{event.venue}</div>
+                  <div className="min-w-0">
+                    <div className="break-words font-medium text-[#f7ebc1]">{event.title}</div>
+                    <div className="mt-1 break-words text-[9px] uppercase tracking-[0.12em] text-[#cbbd9a] sm:text-[10px]">
+                      {event.type} · {event.venue}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
+            {upcomingEvents.length > 3 && (
+              <Link
+                className="mt-4 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#edcf81] transition hover:text-[#fff5d9]"
+                href="/events"
+              >
+                {copy.exploreEvents} <span aria-hidden="true">→</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>

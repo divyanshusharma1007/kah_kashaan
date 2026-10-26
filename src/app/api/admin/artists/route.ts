@@ -9,6 +9,7 @@ import {
   updateArtistAccountStatus,
 } from "@/services/artist-directory";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/services/auth-session";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 export async function GET(request: NextRequest) {
   const unauthorized = await requireAdmin(request);
@@ -128,6 +129,10 @@ export async function PATCH(request: NextRequest) {
         { status: 404, headers: { "Cache-Control": "no-store" } },
       );
     }
+    await safelyNotifyAdmin("Artist account updated", [
+      `Account: ${email}`,
+      `Action: ${role !== undefined ? `Role changed to ${role}` : featureDecision ?? (typeof featured === "boolean" ? (featured ? "Featured" : "Feature removed") : `Active status set to ${isActive}`)}`,
+    ]);
     return NextResponse.json(
       role !== undefined
         ? { success: true, role }

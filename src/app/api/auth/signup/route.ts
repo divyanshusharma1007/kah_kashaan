@@ -6,6 +6,7 @@ import {
 import { sendVerificationEmail } from "@/services/email-verification";
 import { getMongoClient } from "@/services/mongodb";
 import { hasValidRequestOrigin } from "@/services/request-origin";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 type UserDocument = {
   email?: string;
@@ -158,6 +159,7 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    await safelyNotifyAdmin("New account signup", [`Name: ${name}`, `Email: ${email}`, "Account type: Artist"]);
     return jsonResponse({
       success: true,
       message: process.env.NODE_ENV === "development"

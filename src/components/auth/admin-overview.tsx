@@ -78,6 +78,8 @@ function isOverview(value: unknown): value is AdminOverviewData {
     overview.adminCount,
     overview.artistCount,
     overview.pendingFeatureRequestCount,
+    overview.pendingWriteupCount,
+    overview.newSponsorInquiryCount,
     overview.eventCount,
     overview.upcomingEventCount,
     overview.todayRegistrationCount,
@@ -232,10 +234,21 @@ export function AdminOverview() {
       label: "Feature requests",
       value: overview?.pendingFeatureRequestCount,
       note: "Awaiting review",
-      href: "/dashboard/artists?feature=requested",
+      href: "/dashboard/requests",
       icon: "★",
       accent: "text-amber-200",
       border: "border-amber-300/20",
+    },
+    {
+      label: "Request queue",
+      value: overview
+        ? overview.pendingFeatureRequestCount + overview.pendingWriteupCount + overview.newSponsorInquiryCount
+        : undefined,
+      note: `${overview?.pendingWriteupCount ?? 0} writeups · ${overview?.newSponsorInquiryCount ?? 0} sponsor inquiries`,
+      href: "/dashboard/requests",
+      icon: "✉",
+      accent: "text-cyan-200",
+      border: "border-cyan-300/20",
     },
     {
       label: "Events",

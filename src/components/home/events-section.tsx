@@ -1,6 +1,5 @@
 import type { EventItem } from "@/data/home-page-data";
 import type { PublicPageCopy } from "@/data/public-page-copy";
-import Image from "next/image";
 import Link from "next/link";
 
 type EventsSectionProps = {
@@ -64,38 +63,20 @@ export function EventsSection({ upcomingEvents, copy }: EventsSectionProps) {
           {upcomingEvents.map((event) => (
             <article
               key={event.id ?? event.title}
-              className={`group grid min-w-0 gap-4 rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-4 transition duration-200 hover:border-[#d9af57]/55 hover:bg-[#151411] sm:p-5 md:items-center ${
-                event.posterUrl
-                  ? "md:grid-cols-[80px_96px_minmax(0,1fr)_auto]"
-                  : "md:grid-cols-[96px_minmax(0,1fr)_auto]"
-              }`}
+              className="group grid min-w-0 gap-5 rounded-[1.75rem] border border-[#d9af57]/20 bg-[linear-gradient(145deg,#141311,#0e0e0e)] p-5 transition duration-300 hover:-translate-y-1 hover:border-[#d9af57]/45 hover:bg-[#151411] sm:p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
             >
-              {event.posterUrl && (
-                <Image
-                  alt={`${event.title} event poster`}
-                  className="h-28 w-20 rounded-xl border border-white/[0.08] object-cover"
-                  height={336}
-                  loading="lazy"
-                  src={event.posterUrl}
-                  unoptimized
-                  width={240}
-                />
-              )}
-              <div className="flex h-20 w-20 flex-col items-center justify-center rounded-2xl border border-[#d9af57]/25 bg-[#171717] text-center sm:h-[100px] sm:w-full">
-                <div className="font-[var(--font-display)] text-3xl text-[#f5d99a]">{event.date.split(" ")[0]}</div>
-                <div className="text-[10px] uppercase tracking-[0.25em] text-[#d8c89f]">{event.date.split(" ")[1]}</div>
-              </div>
-
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-[0.25em] text-[#d9af57]">{event.type}</div>
-                <h3 className="mt-2 break-words font-[var(--font-display)] text-2xl text-[#f7ebc0] sm:text-3xl">{event.title}</h3>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-[#d9af57]/25 bg-[#d9af57]/[0.07] px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#e4c578]">{event.type}</span>
+                  <span className="text-[10px] uppercase tracking-[0.16em] text-[#a99b7e]">{event.date}</span>
+                </div>
+                <h3 className="break-words font-[var(--font-display)] text-2xl leading-tight text-[#f7ebc0] sm:text-3xl">{event.title}</h3>
                 <p className="mt-2 break-words text-sm text-[#d8c8a2]">
                   {event.venue}{event.city ? ` · ${event.city}` : ""}
                 </p>
-                {(event.dates?.length ? event.dates : event.startsAt ? [event.startsAt] : []).length > 0 && (
+                {(event.dates?.length ?? 0) > 1 && (
                   <p className="mt-2 text-xs text-[#b9ab8c]">
-                    {event.dates?.length ? "All dates: " : ""}
-                    {(event.dates?.length ? event.dates : [event.startsAt!]).map((date) =>
+                    All dates: {event.dates!.map((date) =>
                       new Intl.DateTimeFormat("en-IN", {
                         dateStyle: "medium",
                         timeStyle: "short",
@@ -105,9 +86,9 @@ export function EventsSection({ upcomingEvents, copy }: EventsSectionProps) {
                   </p>
                 )}
                 {event.description && (
-                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#a99b7e]">{event.description}</p>
+                  <p className="mt-3 line-clamp-2 max-w-2xl text-sm leading-6 text-[#a99b7e]">{event.description}</p>
                 )}
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#d2b46a]">
+                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[#d2b46a]">
                   {event.price !== undefined && (
                     <span>
                       {event.price === 0
@@ -123,7 +104,7 @@ export function EventsSection({ upcomingEvents, copy }: EventsSectionProps) {
                 </div>
               </div>
 
-              <Link href={event.id ? `/events/${event.id}` : `/reserve?event=${encodeURIComponent(event.title)}`} className="w-full rounded-full border border-[#d9af57]/40 bg-[#0d0d0d] px-4 py-3 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-[#f0ddab] transition hover:border-[#f2d98b] md:w-auto">
+              <Link href={event.id ? `/events/${event.id}` : `/reserve?event=${encodeURIComponent(event.title)}`} className="w-full rounded-full border border-[#d9af57]/40 bg-[#0d0d0d] px-5 py-3 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f0ddab] transition hover:border-[#f2d98b] hover:bg-[#d9af57]/[0.08] md:w-auto">
                 {event.id ? copy.detailsRegisterLabel : copy.rsvpLabel}
               </Link>
             </article>

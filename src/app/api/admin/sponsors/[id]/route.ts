@@ -7,6 +7,7 @@ import {
   parseSponsorInput,
   updateSponsor,
 } from "@/services/sponsors";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 type SponsorRouteContext = { params: Promise<{ id: string }> };
 
@@ -35,6 +36,7 @@ export async function PATCH(request: NextRequest, context: SponsorRouteContext) 
     const sponsor = await updateSponsor(id, parsed.data);
     if (sponsor === null) return jsonResponse({ error: "Sponsor management is unavailable. Check the database configuration." }, 503);
     if (!sponsor) return jsonResponse({ error: "Sponsor not found." }, 404);
+    await safelyNotifyAdmin("Sponsor updated", [`Sponsor: ${sponsor.name}`, `Sponsor ID: ${sponsor.id}`, "Action: Updated"]);
     return jsonResponse({ sponsor });
   } catch (error) {
     console.error("Could not update sponsor.", error);
@@ -55,6 +57,7 @@ export async function DELETE(request: NextRequest, context: SponsorRouteContext)
     if (result === null) return jsonResponse({ error: "Sponsor management is unavailable. Check the database configuration." }, 503);
     if (result === "in-use") return jsonResponse({ error: "This sponsor is attached to an event and cannot be deleted." }, 409);
     if (result === "not-found") return jsonResponse({ error: "Sponsor not found." }, 404);
+    await safelyNotifyAdmin("Sponsor deleted", [`Sponsor ID: ${id}`, "Action: Deleted"]);
     return jsonResponse({ success: true });
   } catch (error) {
     console.error("Could not delete sponsor.", error);

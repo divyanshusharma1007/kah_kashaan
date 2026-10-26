@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-context";
@@ -39,12 +39,38 @@ function getNavHref(item: NavItem) {
 
 export function SiteHeader({ navItems, logo, programs = [], copy }: SiteHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [programsOpen, setProgramsOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  const programsMenuRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const accountHref = user ? "/dashboard" : "/login";
   const accountLabel = user ? "Dashboard" : copy.guestAccount;
 
+  useEffect(() => {
+    function closeMenus(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!headerRef.current?.contains(target)) setMobileMenuOpen(false);
+      if (!programsMenuRef.current?.contains(target)) setProgramsOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setProgramsOpen(false);
+        setMobileMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", closeMenus);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenus);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
   return (
-    <header className="fixed top-4 left-4 right-4 z-50 mx-auto max-w-7xl rounded-2xl border border-[#d9af57]/30 bg-[#101010]/90 px-5 py-3 shadow-[0_0_30px_rgba(217,175,87,0.1)] backdrop-blur-xl md:rounded-full">
+    <header ref={headerRef} className="fixed top-3 left-3 right-3 z-50 mx-auto max-w-7xl rounded-2xl border border-[#d9af57]/30 bg-[#101010]/90 px-4 py-3 shadow-[0_0_30px_rgba(217,175,87,0.1)] backdrop-blur-xl sm:top-4 sm:left-4 sm:right-4 sm:px-5 md:rounded-full">
       <nav className="flex items-center justify-between gap-6">
         {/* Logo */}
         <div className="flex items-center gap-3">
@@ -66,22 +92,30 @@ export function SiteHeader({ navItems, logo, programs = [], copy }: SiteHeaderPr
         </div>
 
         {/* Desktop Navigation Links */}
-        <div className="hidden items-center gap-8 text-sm uppercase tracking-[0.2em] text-[#e7d7aa] md:flex">
+        <div className="hidden items-center gap-8 text-sm uppercase tracking-[0.2em] text-[#e7d7aa] lg:flex">
           {navItems.map((item) => (
             item.label.trim().toLowerCase() === copy.programs.trim().toLowerCase() ? (
-              <details className="group relative" key={item.label}>
-                <summary className="cursor-pointer list-none transition hover:text-[#f9e8a0] [&::-webkit-details-marker]:hidden">
+              <div className="relative" key={item.label} ref={programsMenuRef}>
+                <button
+                  type="button"
+                  aria-expanded={programsOpen}
+                  aria-haspopup="true"
+                  onClick={() => setProgramsOpen((open) => !open)}
+                  className="cursor-pointer list-none transition hover:text-[#f9e8a0]"
+                >
                   {copy.programs} <span aria-hidden="true" className="ml-1 text-[10px]">⌄</span>
-                </summary>
+                </button>
+                {programsOpen && (
                 <div className="absolute left-1/2 top-full z-50 mt-4 w-64 -translate-x-1/2 rounded-2xl border border-[#d9af57]/25 bg-[#10100f] p-2 shadow-2xl">
-                  <Link className="block rounded-xl px-3 py-2.5 text-xs text-[#edcf81] hover:bg-white/[0.05]" href="/programs">{copy.allPrograms}</Link>
+                  <Link onClick={() => setProgramsOpen(false)} className="block rounded-xl px-3 py-2.5 text-xs text-[#edcf81] hover:bg-white/[0.05]" href="/programs">{copy.allPrograms}</Link>
                   {programs.map((program) => (
-                    <Link className="block rounded-xl px-3 py-2.5 text-xs text-[#e7d7aa] hover:bg-white/[0.05] hover:text-white" href={`/programs/${encodeURIComponent(program.slug)}`} key={program.slug}>
+                    <Link onClick={() => setProgramsOpen(false)} className="block rounded-xl px-3 py-2.5 text-xs text-[#e7d7aa] hover:bg-white/[0.05] hover:text-white" href={`/programs/${encodeURIComponent(program.slug)}`} key={program.slug}>
                       {program.title}
                     </Link>
                   ))}
                 </div>
-              </details>
+                )}
+              </div>
             ) : (
               <Link key={item.label} href={getNavHref(item)} className="transition hover:text-[#f9e8a0]">
                 {item.label}
@@ -94,7 +128,7 @@ export function SiteHeader({ navItems, logo, programs = [], copy }: SiteHeaderPr
         </div>
 
         {/* Desktop account and event actions */}
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           <Link href={accountHref} className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#e7d7aa] transition hover:text-[#f9e8a0]">
             {accountLabel}
           </Link>
@@ -112,7 +146,7 @@ export function SiteHeader({ navItems, logo, programs = [], copy }: SiteHeaderPr
         <button
           type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="rounded-lg p-2 text-[#e7d7aa] hover:text-[#f9e8a0] md:hidden focus:outline-none"
+          className="rounded-lg p-2 text-[#e7d7aa] hover:text-[#f9e8a0] lg:hidden focus:outline-none"
           aria-label={copy.menuToggle}
           aria-expanded={mobileMenuOpen}
         >
@@ -144,7 +178,7 @@ export function SiteHeader({ navItems, logo, programs = [], copy }: SiteHeaderPr
 
       {/* Smoothly Expanding Mobile Dropdown Menu */}
       <div
-        className={`grid transition-all duration-300 ease-in-out md:hidden ${
+        className={`grid transition-all duration-300 ease-in-out lg:hidden ${
           mobileMenuOpen
             ? "grid-rows-[1fr] opacity-100 mt-4 pt-4 border-t border-[#d9af57]/20"
             : "grid-rows-[0fr] opacity-0 mt-0 pt-0 border-t-0"

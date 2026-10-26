@@ -8,6 +8,7 @@ import {
   setArtistWritingDecision,
 } from "@/services/artist-content";
 import { setArtistFeatureDecision } from "@/services/artist-directory";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -51,6 +52,7 @@ export async function PATCH(request: NextRequest) {
       }
       const saved = await setArtistFeatureFee(value.feeRupees as number);
       if (saved === null) return jsonResponse({ error: "Artist content management is temporarily unavailable." }, 503);
+      await safelyNotifyAdmin("Artist feature fee updated", [`New fee: ₹${value.feeRupees}`]);
       return jsonResponse({ success: true, feeRupees: value.feeRupees });
     }
 
@@ -68,6 +70,11 @@ export async function PATCH(request: NextRequest) {
       if (updated === null) return jsonResponse({ error: "Artist content management is temporarily unavailable." }, 503);
       if (updated === "selection-limit") return jsonResponse({ error: "An artist can have no more than four selected public writeups." }, 409);
       if (!updated) return jsonResponse({ error: "That writing submission could not be found." }, 404);
+      await safelyNotifyAdmin("Artist writing submission reviewed", [
+        `Artist: ${email}`,
+        `Submission ID: ${value.writeupId}`,
+        `Decision: ${value.decision}`,
+      ]);
       return jsonResponse({ success: true, writeupId: value.writeupId, decision: value.decision });
     }
 
@@ -75,6 +82,7 @@ export async function PATCH(request: NextRequest) {
       const updated = await setArtistFeatureFree(email);
       if (updated === null) return jsonResponse({ error: "Artist content management is temporarily unavailable." }, 503);
       if (!updated) return jsonResponse({ error: "This artist could not be marked free. Check their account and current feature status." }, 409);
+      await safelyNotifyAdmin("Artist feature request updated", [`Artist: ${email}`, "Decision: Marked free"]);
       return jsonResponse({ success: true, featureDecision: "free" });
     }
     if (value.featureDecision === "approve" || value.featureDecision === "reject" ||
@@ -82,6 +90,7 @@ export async function PATCH(request: NextRequest) {
       const updated = await setArtistFeatureDecision(email, value.featureDecision);
       if (updated === null) return jsonResponse({ error: "Artist content management is temporarily unavailable." }, 503);
       if (!updated) return jsonResponse({ error: "This artist could not be updated. Check their account and email verification." }, 409);
+      await safelyNotifyAdmin("Artist feature request updated", [`Artist: ${email}`, `Decision: ${value.featureDecision}`]);
       return jsonResponse({ success: true, featureDecision: value.featureDecision });
     }
     return jsonResponse({ error: "Choose a feature-fee, writeup, or feature-request update." }, 400);

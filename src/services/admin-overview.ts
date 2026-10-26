@@ -63,6 +63,8 @@ export type AdminOverviewData = {
   adminCount: number;
   artistCount: number;
   pendingFeatureRequestCount: number;
+  pendingWriteupCount: number;
+  newSponsorInquiryCount: number;
   pendingFeatureRequests: PendingFeatureRequest[];
   eventCount: number;
   upcomingEventCount: number;
@@ -155,6 +157,8 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     adminCount,
     artistCount,
     pendingFeatureRequestCount,
+    pendingWriteupCount,
+    newSponsorInquiryCount,
     pendingFeatureRequests,
     eventCount,
     upcomingEventCount,
@@ -168,6 +172,12 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false }, role: "admin" }),
     users.countDocuments({ email: { $type: "string" }, emailVerified: { $ne: false }, role: "artist" }),
     users.countDocuments({ role: "artist", featuredStatus: "requested" }),
+    users.aggregate<{ count: number }>([
+      { $unwind: "$writingSubmissions" },
+      { $match: { role: "artist", "writingSubmissions.status": "pending" } },
+      { $count: "count" },
+    ]).toArray().then((rows) => rows[0]?.count ?? 0),
+    database.collection("sponsorInquiries").countDocuments({ status: "new" }),
     users
       .find({ role: "artist", featuredStatus: "requested", email: { $type: "string" } })
       .project<UserDocument>({ name: 1, email: 1, emailNormalized: 1, emailVerified: 1, updatedAt: 1 })
@@ -266,6 +276,8 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     adminCount,
     artistCount,
     pendingFeatureRequestCount,
+    pendingWriteupCount,
+    newSponsorInquiryCount,
     pendingFeatureRequests: pendingFeatureRequests.map((artist) => ({
       name: artist.name?.trim() || "Artist",
       email: (artist.emailNormalized || artist.email || "").trim().toLowerCase(),

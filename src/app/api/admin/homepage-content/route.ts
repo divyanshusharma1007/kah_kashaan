@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
 import { hasValidRequestOrigin } from "@/services/request-origin";
 import { getHomepageHeroContent, parseHeroContent, saveHomepageHeroContent } from "@/services/homepage-content";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -44,6 +45,7 @@ export async function PUT(request: NextRequest) {
     if (!heroContent) {
       return jsonResponse({ error: "Homepage content is unavailable. Check the database configuration." }, 503);
     }
+    await safelyNotifyAdmin("Homepage content updated", ["The public homepage hero content was updated by an administrator."]);
     return jsonResponse({ heroContent });
   } catch (error) {
     console.error("Could not save homepage content.", error);

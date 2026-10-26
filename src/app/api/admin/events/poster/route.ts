@@ -5,6 +5,7 @@ import { hasValidRequestOrigin } from "@/services/request-origin";
 import { ArtistPhotoStorageError, uploadArtistPhoto } from "@/services/artist-photo-storage";
 import { CloudinaryPhotoError } from "@/services/cloudinary";
 import { ImageKitPhotoError } from "@/services/imagekit";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 const MAX_POSTER_SIZE = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const reference = await uploadArtistPhoto(poster, `event-poster-${randomUUID()}@kah-kashaan.local`);
+    await safelyNotifyAdmin("Event poster uploaded", ["An administrator uploaded an event poster asset."]);
     return NextResponse.json({
       posterUrl: `/api/events/poster?reference=${encodeURIComponent(reference)}`,
     }, { headers: { "Cache-Control": "no-store" } });

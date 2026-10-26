@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/services/admin-auth";
 import { hasValidRequestOrigin } from "@/services/request-origin";
 import { createSponsorInquiry, listSponsorInquiries, parseSponsorInquiry } from "@/services/sponsor-inquiries";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -24,6 +25,14 @@ export async function POST(request: NextRequest) {
     if (!created) {
       return jsonResponse({ error: "The inquiry form is unavailable. Please try again later." }, 503);
     }
+    await safelyNotifyAdmin("New partnership inquiry", [
+      `Contact: ${parsed.data.name}`,
+      `Organization: ${parsed.data.organization}`,
+      `Email: ${parsed.data.email}`,
+      `Phone: ${parsed.data.phone || "Not provided"}`,
+      `Interest: ${parsed.data.interest || "Not specified"}`,
+      `Message: ${parsed.data.message}`,
+    ]);
     return jsonResponse({ message: "Thank you. Your partnership inquiry has been sent." }, 201);
   } catch (error) {
     console.error("Could not save sponsor inquiry.", error);

@@ -15,11 +15,12 @@ const adminNavigation = [
   { href: "/dashboard/skills", label: "Skills", icon: "skills" },
   { href: "/dashboard/artists", label: "Artists", icon: "artists" },
   { href: "/dashboard/artist-content", label: "Artist work", icon: "content" },
+  { href: "/dashboard/requests", label: "Requests", icon: "requests" },
   { href: "/dashboard/users", label: "Accounts", icon: "artists" },
   { href: "/dashboard/sponsors", label: "Sponsors", icon: "sponsors" },
 ] as const;
 
-function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "artists" | "artist" | "sponsors" | "content" }) {
+function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "artists" | "artist" | "sponsors" | "content" | "requests" }) {
   if (name === "overview") {
     return (
       <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" className="h-5 w-5">
@@ -67,6 +68,14 @@ function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "art
       </svg>
     );
   }
+  if (name === "requests") {
+    return (
+      <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" className="h-5 w-5">
+        <path d="M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5h-7l-5 3v-3H5A1.5 1.5 0 0 1 3.5 16V6A1.5 1.5 0 0 1 5 4.5Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.6" />
+        <path d="M7.5 9h9m-9 4h6" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+      </svg>
+    );
+  }
   return (
     <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" className="h-5 w-5">
       <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6" />
@@ -90,6 +99,7 @@ function routeTitle(pathname: string, isAdmin: boolean): string {
   if (pathname.startsWith("/dashboard/skills")) return "Performance skills";
   if (pathname.startsWith("/dashboard/artists")) return "Artists";
   if (pathname.startsWith("/dashboard/artist-content")) return "Artist work";
+  if (pathname.startsWith("/dashboard/requests")) return "Requests";
   if (pathname.startsWith("/dashboard/users")) return "Account directory";
   if (pathname.startsWith("/dashboard/sponsors")) return "Sponsors";
   return "Overview";

@@ -8,6 +8,7 @@ import {
 import { getSignedInArtist } from "@/services/artist-auth";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 import { getUpcomingPublishedEvent } from "@/services/events";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -92,6 +93,12 @@ export async function POST(request: NextRequest) {
     if (result === "artist-not-qualified") {
       return jsonResponse({ error: "Your profile does not include any of this event's required skills." }, 403);
     }
+    await safelyNotifyAdmin("New event registration", [
+      `Artist: ${user.name}`,
+      `Email: ${user.email}`,
+      `Event: ${event.title}`,
+      `Payment: ${registration.paymentStatus === "due" ? "Due at event" : "No payment required"}`,
+    ]);
     return jsonResponse({ success: true }, 201);
   } catch (error) {
     console.error("Could not save artist event registration.", error);

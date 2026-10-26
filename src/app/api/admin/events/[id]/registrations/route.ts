@@ -9,6 +9,7 @@ import {
 } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 import { listPublicSponsorsByIds } from "@/services/sponsors";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 type EventRegistrationsRouteContext = {
   params: Promise<{ id: string }>;
@@ -76,6 +77,11 @@ export async function PATCH(request: NextRequest, context: EventRegistrationsRou
     const updated = await setEventRegistrationPerformance(id, email, willPerform);
     if (updated === null) return jsonResponse({ error: "Event registrations are temporarily unavailable." }, 503);
     if (!updated) return jsonResponse({ error: "Artist registration not found for this event." }, 404);
+    await safelyNotifyAdmin("Event registration updated", [
+      `Event ID: ${id}`,
+      `Artist: ${email}`,
+      `Will perform: ${willPerform ? "Yes" : "No"}`,
+    ]);
     return jsonResponse({ success: true, willPerform });
   } catch (error) {
     console.error("Could not update artist event performance status.", error);

@@ -10,6 +10,7 @@ import {
 } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 import { listPublicSponsorsByIds } from "@/services/sponsors";
+import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 type EventRouteContext = {
   params: Promise<{ id: string }>;
@@ -73,6 +74,7 @@ export async function PUT(request: NextRequest, context: EventRouteContext) {
     const event = await updateEvent(id, parsed.data);
     if (event === null) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);
     if (!event) return jsonResponse({ error: "Event not found." }, 404);
+    await safelyNotifyAdmin("Event updated", [`Event: ${event.title}`, `Event ID: ${event.id}`, "Action: Updated"]);
     return jsonResponse({ event });
   } catch (error) {
     console.error("Could not update event.", error);
@@ -95,6 +97,7 @@ export async function DELETE(request: NextRequest, context: EventRouteContext) {
       return jsonResponse({ error: "This event cannot be deleted because one or more artists are registered." }, 409);
     }
     if (result === "not-found") return jsonResponse({ error: "Event not found." }, 404);
+    await safelyNotifyAdmin("Event deleted", [`Event ID: ${id}`, "Action: Deleted"]);
     return jsonResponse({ success: true });
   } catch (error) {
     console.error("Could not delete event.", error);
