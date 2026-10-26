@@ -27,6 +27,8 @@ APP_ENV=develop npm run dev
 
 Copy `.env.example` to the matching file and fill in the required values before starting the app.
 
+On Render (and similar hosts), do not add `.env.local`. Set the same keys in the service Environment dashboard. Those values are already in `process.env` at build and runtime, so the app skips the local env file.
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.

@@ -4,7 +4,24 @@ const path = require("node:path");
 const envName = process.env.APP_ENV === "develop" ? ".env.develop" : ".env.local";
 const envPath = path.resolve(process.cwd(), envName);
 
+function isHostedRuntime() {
+  return Boolean(
+    process.env.RENDER ||
+      process.env.RENDER_SERVICE_ID ||
+      process.env.VERCEL ||
+      process.env.NETLIFY ||
+      process.env.CI ||
+      process.env.NODE_ENV === "production",
+  );
+}
+
 if (!fs.existsSync(envPath)) {
+  // Hosts like Render inject dashboard env vars into process.env and do not
+  // ship gitignored files such as .env.local.
+  if (isHostedRuntime()) {
+    return;
+  }
+
   throw new Error(
     `Missing ${envName}. Copy .env.example to ${envName} and fill in the required values.`,
   );
