@@ -5,7 +5,7 @@ import {
 } from "@/services/auth-session";
 import { sendVerificationEmail } from "@/services/email-verification";
 import { getMongoClient } from "@/services/mongodb";
-import { hasValidRequestOrigin } from "@/services/request-origin";
+import { getRequestOrigin, hasValidRequestOrigin } from "@/services/request-origin";
 import { safelyNotifyAdmin } from "@/services/admin-notifications";
 
 type UserDocument = {
@@ -41,42 +41,42 @@ function isDuplicateKeyError(error: unknown): boolean {
 
 export async function POST(request: NextRequest) {
   if (!hasValidRequestOrigin(request)) {
-    return jsonResponse({ error: "Invalid signup request." }, 403);
+    return jsonResponse({ error: "Invalid signup request origin." }, 403);
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Enter valid signup details." }, 400);
+    return jsonResponse({ error: "Invalid signup payload." }, 400);
   }
+
   if (!body || typeof body !== "object") {
-    return jsonResponse({ error: "Enter valid signup details." }, 400);
+    return jsonResponse({ error: "Name, email, and password are required." }, 400);
   }
 
   const name = "name" in body && typeof body.name === "string" ? body.name.trim() : "";
   const email = "email" in body && typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = "password" in body && typeof body.password === "string" ? body.password : "";
 
-  if (name.length < 1 || name.length > 120) return jsonResponse({ error: "Enter your name." }, 400);
+  if (!name || name.length > 120) {
+    return jsonResponse({ error: "Please enter your name." }, 400);
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
-    return jsonResponse({ error: "Enter a valid email address." }, 400);
+    return jsonResponse({ error: "Please enter a valid email address." }, 400);
   }
   if (password.length < 8 || password.length > 256) {
-    return jsonResponse({ error: "Your password must be between 8 and 256 characters." }, 400);
+    return jsonResponse({ error: "Password must be at least 8 characters long." }, 400);
   }
+
   try {
     const client = await getMongoClient();
     if (!client) return jsonResponse({ error: "Signup is temporarily unavailable. Please try again." }, 503);
     const databaseName = process.env.MONGODB_DB?.trim();
     const users = client.db(databaseName || undefined).collection<UserDocument>("users");
-
     const existing = await users.findOne(
       { email },
-      {
-        collation: EMAIL_COLLATION,
-        projection: { _id: 1, emailVerified: 1, provider: 1, name: 1, emailVerificationSentAt: 1 },
-      },
+      { collation: EMAIL_COLLATION, projection: { _id: 1, email: 1, name: 1, provider: 1, emailVerified: 1, emailVerificationSentAt: 1 } },
     );
     if (existing) {
       if (existing.provider === "password" && existing.emailVerified === false) {
@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
           email,
           name: existing.name?.trim() || email,
           token: verificationToken,
+          origin: getRequestOrigin(request),
         });
         return jsonResponse({
           success: true,
@@ -149,7 +150,12 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      await sendVerificationEmail({ email, name, token: verificationToken });
+      await sendVerificationEmail({
+        email,
+        name,
+        token: verificationToken,
+        origin: getRequestOrigin(request),
+      });
     } catch (error) {
       try {
         await users.deleteOne({ _id: insertedUser.insertedId, emailVerified: false });

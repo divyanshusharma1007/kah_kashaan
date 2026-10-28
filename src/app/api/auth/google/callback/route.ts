@@ -10,6 +10,12 @@ import {
 import { createGoogleAuthLogger } from "@/services/google-auth-logging";
 import { getMongoClient } from "@/services/mongodb";
 import { safelyNotifyAdmin } from "@/services/admin-notifications";
+import {
+  createAppUrl,
+  getGoogleRedirectUri,
+  isAllowedOrigin,
+  isSecureCookie,
+} from "@/services/request-origin";
 
 type GoogleTokenResponse = {
   id_token?: string;
@@ -42,26 +48,11 @@ function isDuplicateKeyError(error: unknown): boolean {
 
 function authError(request: NextRequest, reason: string, intent: "login" | "signup") {
   const page = intent === "signup" ? "signup" : "login";
-  return NextResponse.redirect(new URL(`/${page}?authError=${encodeURIComponent(reason)}`, request.url));
+  return NextResponse.redirect(createAppUrl(`/${page}?authError=${encodeURIComponent(reason)}`, request));
 }
 
-function dashboardUrl(): URL {
-  const configuredUrl = process.env.APP_URL?.trim() || process.env.GOOGLE_REDIRECT_URI?.trim();
-  if (!configuredUrl) {
-    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be configured for post-login redirects.");
-  }
-
-  let baseUrl: URL;
-  try {
-    baseUrl = new URL(configuredUrl);
-  } catch {
-    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be a valid absolute URL.");
-  }
-  if (baseUrl.protocol !== "https:" && baseUrl.hostname !== "localhost") {
-    throw new Error("The public app URL must use HTTPS outside localhost.");
-  }
-
-  return new URL("/dashboard", baseUrl);
+function dashboardUrl(request: NextRequest): URL {
+  return createAppUrl("/dashboard", request);
 }
 
 export async function GET(request: NextRequest) {
@@ -77,9 +68,13 @@ export async function GET(request: NextRequest) {
     : stateMatchesCookie && state?.startsWith("login.")
       ? "login"
       : cookieIntent;
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  const cookieRedirectUri = request.cookies.get("google-oauth-redirect-uri")?.value?.trim();
+  const redirectUri = (cookieRedirectUri && isAllowedOrigin(cookieRedirectUri))
+    ? cookieRedirectUri
+    : getGoogleRedirectUri(request);
+
   let stage = "callback_received";
   logger.info(stage, {
     intent,
@@ -90,12 +85,18 @@ export async function GET(request: NextRequest) {
       (state?.startsWith("signup.") ? cookieIntent === "signup" : cookieIntent === "login"),
     hasCode: Boolean(code),
     hasState: Boolean(state),
+    redirectUri,
   });
 
   const response = (result: NextResponse) => {
+    result.cookies.delete({ name: "google-oauth-state", path: "/" });
+    result.cookies.delete({ name: "google-oauth-nonce", path: "/" });
+    result.cookies.delete({ name: "google-oauth-intent", path: "/" });
+    result.cookies.delete({ name: "google-oauth-redirect-uri", path: "/" });
     result.cookies.delete({ name: "google-oauth-state", path: CALLBACK_PATH });
     result.cookies.delete({ name: "google-oauth-nonce", path: CALLBACK_PATH });
     result.cookies.delete({ name: "google-oauth-intent", path: CALLBACK_PATH });
+    result.cookies.delete({ name: "google-oauth-redirect-uri", path: CALLBACK_PATH });
     result.headers.set("X-Auth-Request-Id", logger.requestId);
     return result;
   };
@@ -221,10 +222,10 @@ export async function GET(request: NextRequest) {
       await safelyNotifyAdmin("New account signup", [`Name: ${name}`, `Email: ${email}`, "Account type: Artist (Google)"]);
       logger.info("signup_succeeded", { intent });
       const sessionUser: SessionUser = { name, email, role: "artist", provider: "google" };
-      const result = response(NextResponse.redirect(dashboardUrl()));
+      const result = response(NextResponse.redirect(dashboardUrl(request)));
       result.cookies.set(SESSION_COOKIE_NAME, createSessionToken(sessionUser), {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureCookie(request),
         sameSite: "lax",
         maxAge: SESSION_MAX_AGE_SECONDS,
         path: "/",
@@ -235,7 +236,7 @@ export async function GET(request: NextRequest) {
     if (intent === "signup") {
       logger.info("signup_rejected_existing_account", { intent });
       return response(
-        NextResponse.redirect(new URL("/login?authError=account_exists", request.url)),
+        NextResponse.redirect(createAppUrl("/login?authError=account_exists", request)),
       );
     }
 
@@ -263,10 +264,10 @@ export async function GET(request: NextRequest) {
       role: user.role,
       provider: "google" as const,
     };
-    const result = response(NextResponse.redirect(dashboardUrl()));
+    const result = response(NextResponse.redirect(dashboardUrl(request)));
     result.cookies.set(SESSION_COOKIE_NAME, createSessionToken(sessionUser), {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isSecureCookie(request),
       sameSite: "lax",
       maxAge: SESSION_MAX_AGE_SECONDS,
       path: "/",
@@ -277,7 +278,7 @@ export async function GET(request: NextRequest) {
     if (intent === "signup" && isDuplicateKeyError(error)) {
       logger.info("signup_rejected_duplicate_key", { intent });
       return response(
-        NextResponse.redirect(new URL("/login?authError=account_exists", request.url)),
+        NextResponse.redirect(createAppUrl("/login?authError=account_exists", request)),
       );
     }
     logger.error(stage, error, { intent });

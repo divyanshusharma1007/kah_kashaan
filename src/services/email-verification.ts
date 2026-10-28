@@ -1,6 +1,7 @@
 import "server-only";
 
 import nodemailer from "nodemailer";
+import { getRequestOrigin } from "@/services/request-origin";
 
 function escapeHtml(value: string): string {
   return value
@@ -11,38 +12,37 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-function getAppBaseUrl(): URL {
+function getAppBaseUrl(origin?: string): URL {
+  if (origin?.trim()) {
+    try {
+      return new URL(origin.trim());
+    } catch {}
+  }
+
   const configuredUrl = process.env.APP_URL?.trim() || process.env.GOOGLE_REDIRECT_URI?.trim();
-  if (!configuredUrl) {
-    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be configured to create verification links.");
+  if (configuredUrl) {
+    try {
+      return new URL(configuredUrl);
+    } catch {}
   }
 
-  let appUrl: URL;
-  try {
-    appUrl = new URL(configuredUrl);
-  } catch {
-    throw new Error("APP_URL or GOOGLE_REDIRECT_URI must be a valid absolute URL.");
-  }
-  if (appUrl.protocol !== "https:" && appUrl.hostname !== "localhost") {
-    throw new Error("The app URL must use HTTPS outside localhost.");
-  }
-
-  return new URL(appUrl.origin);
+  const fallbackOrigin = getRequestOrigin();
+  return new URL(fallbackOrigin);
 }
 
-export function getEmailVerificationConfiguration() {
+export function getEmailVerificationConfiguration(origin?: string) {
   const user = process.env.SMTP_USER?.trim();
   const password = process.env.SMTP_APP_PASSWORD?.replace(/\s/g, "");
   if (!user || !password) {
     throw new Error("SMTP_USER and SMTP_APP_PASSWORD must be configured to send verification emails.");
   }
 
-  getAppBaseUrl();
+  getAppBaseUrl(origin);
   return { user, password };
 }
 
-function getVerificationUrl(token: string): URL {
-  const verificationUrl = new URL("/api/auth/verify-email", getAppBaseUrl());
+function getVerificationUrl(token: string, origin?: string): URL {
+  const verificationUrl = new URL("/api/auth/verify-email", getAppBaseUrl(origin));
   verificationUrl.searchParams.set("token", token);
   return verificationUrl;
 }
@@ -51,13 +51,15 @@ export async function sendVerificationEmail({
   email,
   name,
   token,
+  origin,
 }: {
   email: string;
   name: string;
   token: string;
+  origin?: string;
 }): Promise<void> {
-  const { user, password } = getEmailVerificationConfiguration();
-  const verificationUrl = getVerificationUrl(token);
+  const { user, password } = getEmailVerificationConfiguration(origin);
+  const verificationUrl = getVerificationUrl(token, origin);
   const safeName = escapeHtml(name);
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",

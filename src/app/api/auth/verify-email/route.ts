@@ -6,7 +6,7 @@ import {
   SESSION_MAX_AGE_SECONDS,
 } from "@/services/auth-session";
 import { getMongoClient } from "@/services/mongodb";
-import { hasValidRequestOrigin } from "@/services/request-origin";
+import { createAppUrl, hasValidRequestOrigin, isSecureCookie } from "@/services/request-origin";
 
 type UserDocument = {
   email?: string;
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       sessionToken,
       {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureCookie(request),
         sameSite: "lax",
         maxAge: SESSION_MAX_AGE_SECONDS,
         path: "/",
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token") ?? "";
-  const loginUrl = new URL("/login", request.url);
+  const loginUrl = createAppUrl("/login", request);
   if (!/^[a-f0-9]{64}$/.test(token)) {
     loginUrl.searchParams.set("verificationError", "invalid");
     return NextResponse.redirect(loginUrl);
@@ -162,11 +162,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    const dashboardUrl = new URL("/dashboard", request.url);
+    const dashboardUrl = createAppUrl("/dashboard", request);
     const response = NextResponse.redirect(dashboardUrl);
     response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isSecureCookie(request),
       sameSite: "lax",
       maxAge: SESSION_MAX_AGE_SECONDS,
       path: "/",

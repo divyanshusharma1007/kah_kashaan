@@ -6,7 +6,7 @@ import {
   verifyPassword,
 } from "@/services/auth-session";
 import { getMongoClient } from "@/services/mongodb";
-import { hasValidRequestOrigin } from "@/services/request-origin";
+import { hasValidRequestOrigin, isSecureCookie } from "@/services/request-origin";
 
 type UserDocument = {
   email?: string;
@@ -33,17 +33,18 @@ function isUserRole(value: unknown): value is "artist" | "admin" {
 
 export async function POST(request: NextRequest) {
   if (!hasValidRequestOrigin(request)) {
-    return jsonResponse({ error: "Invalid login request." }, 403);
+    return jsonResponse({ error: "Invalid login request origin." }, 403);
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return jsonResponse({ error: "Enter your email and password." }, 400);
+    return jsonResponse({ error: "Email and password are required." }, 400);
   }
+
   if (!body || typeof body !== "object") {
-    return jsonResponse({ error: "Enter your email and password." }, 400);
+    return jsonResponse({ error: "Email and password are required." }, 400);
   }
 
   const email = "email" in body && typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
     const response = jsonResponse({ success: true });
     response.cookies.set(SESSION_COOKIE_NAME, session, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isSecureCookie(request),
       sameSite: "lax",
       maxAge: SESSION_MAX_AGE_SECONDS,
       path: "/",
