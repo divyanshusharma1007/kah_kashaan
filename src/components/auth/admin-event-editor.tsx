@@ -15,6 +15,7 @@ type EventForm = {
   type: string;
   dates: string[];
   posterUrl: string;
+  canvaTemplateId: string;
   location: string;
   city: string;
   price: string;
@@ -32,6 +33,7 @@ const emptyForm: EventForm = {
   type: "",
   dates: [""],
   posterUrl: "",
+  canvaTemplateId: "",
   location: "",
   city: "",
   price: "0",
@@ -58,6 +60,7 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     Array.isArray(event.dates) &&
     event.dates.every((date) => typeof date === "string") &&
     typeof event.posterUrl === "string" &&
+    typeof event.canvaTemplateId === "string" &&
     typeof event.location === "string" &&
     typeof event.city === "string" &&
     typeof event.price === "number" &&
@@ -133,6 +136,8 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
   const [form, setForm] = useState<EventForm>(emptyForm);
   const [skills, setSkills] = useState<ArtistSkill[]>([]);
   const [sponsors, setSponsors] = useState<ManagedSponsor[]>([]);
+  const [canvaTemplates, setCanvaTemplates] = useState<{ id: string; title: string; thumbnailUrl: string }[]>([]);
+  const [canvaError, setCanvaError] = useState("");
   const [loading, setLoading] = useState(Boolean(eventId));
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState("");
@@ -172,6 +177,31 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
       })
       .finally(() => {
         if (active) setSkillsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/canva/templates", { cache: "no-store" })
+      .then(async (response) => {
+        const result = await parseResponse(response);
+        if (!response.ok) throw new Error(responseError(result, "Connect Canva to load brand templates."));
+        if (!result || typeof result !== "object" || !("templates" in result) || !Array.isArray(result.templates)) {
+          throw new Error("Canva returned an invalid template list.");
+        }
+        const templates = result.templates.filter((template): template is { id: string; title: string; thumbnailUrl: string } =>
+          Boolean(template && typeof template === "object" &&
+            "id" in template && typeof template.id === "string" &&
+            "title" in template && typeof template.title === "string" &&
+            "thumbnailUrl" in template && typeof template.thumbnailUrl === "string"),
+        );
+        if (active) setCanvaTemplates(templates);
+      })
+      .catch((cause: unknown) => {
+        if (active) setCanvaError(cause instanceof Error ? cause.message : "Connect Canva to load brand templates.");
       });
     return () => {
       active = false;
@@ -221,6 +251,7 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             type: event.type,
             dates: (event.dates.length ? event.dates : [event.startsAt]).map(toLocalDateTime),
             posterUrl: event.posterUrl,
+            canvaTemplateId: event.canvaTemplateId,
             location: event.location,
             city: event.city,
             price: String(event.price),
@@ -432,6 +463,25 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
                   </button>
                 </div>
               )}
+            </div>
+            <div className="sm:col-span-2 rounded-xl border border-[#d9af57]/20 bg-[#0b0b0a] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <label className={labelClass} htmlFor="canva-template">Canva brand template</label>
+                  <p className="mt-1 text-xs text-[#827864]">The template must contain autofill fields named for the artist name and photo.</p>
+                </div>
+                <a className="text-xs text-[#f0ddab] underline underline-offset-4" href="/api/admin/canva/connect">Connect Canva</a>
+              </div>
+              <select
+                className={inputClass}
+                id="canva-template"
+                onChange={(event) => updateField("canvaTemplateId", event.target.value)}
+                value={form.canvaTemplateId}
+              >
+                <option value="">Do not generate artist posters</option>
+                {canvaTemplates.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}
+              </select>
+              {canvaError && <p className="mt-2 text-xs text-[#cbbd9f]" role="status">{canvaError}</p>}
             </div>
             <label className={`${labelClass} sm:col-span-2`}>
               Location

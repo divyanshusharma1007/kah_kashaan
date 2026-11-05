@@ -13,6 +13,7 @@ export type EventInput = {
   startsAt: string;
   dates: string[];
   posterUrl: string;
+  canvaTemplateId: string;
   location: string;
   city: string;
   price: number;
@@ -35,6 +36,7 @@ type EventDocument = Omit<EventInput, "startsAt" | "dates" | "posterUrl" | "skil
   startsAt: Date;
   dates?: Date[];
   posterUrl?: string;
+  canvaTemplateId?: string;
   createdAt: Date;
   updatedAt: Date;
   city?: string;
@@ -102,6 +104,7 @@ function serializeEvent(event: WithId<EventDocument>): ManagedEvent {
     startsAt: event.startsAt.toISOString(),
     dates: dates.map((date) => date.toISOString()),
     posterUrl: event.posterUrl ?? "",
+    canvaTemplateId: event.canvaTemplateId ?? "",
     location: event.location,
     city: event.city ?? "",
     price: event.price,
@@ -132,6 +135,7 @@ export function parseEventInput(value: unknown):
     ? [body.startsAt]
     : body.dates;
   const posterUrl = typeof body.posterUrl === "string" ? body.posterUrl.trim() : "";
+  const canvaTemplateId = typeof body.canvaTemplateId === "string" ? body.canvaTemplateId.trim() : "";
   const location = typeof body.location === "string" ? body.location.trim() : "";
   const city = typeof body.city === "string" ? body.city.trim() : "";
   const organizer = typeof body.organizer === "string" ? body.organizer.trim() : "";
@@ -174,6 +178,9 @@ export function parseEventInput(value: unknown):
   }
   if (posterUrl.length > 500) {
     return { success: false, error: "The event poster URL is invalid." };
+  }
+  if (canvaTemplateId.length > 200) {
+    return { success: false, error: "The Canva brand template is invalid." };
   }
   if (posterUrl) {
     try {
@@ -239,6 +246,7 @@ export function parseEventInput(value: unknown):
       startsAt: dates[0].toISOString(),
       dates: dates.map((date) => date.toISOString()),
       posterUrl,
+      canvaTemplateId,
       location,
       city,
       price,
@@ -330,6 +338,7 @@ export async function createEvent(input: EventInput): Promise<ManagedEvent | nul
     startsAt: new Date(input.startsAt),
     dates: input.dates.map((date) => new Date(date)),
     posterUrl: input.posterUrl,
+    canvaTemplateId: input.canvaTemplateId,
     title: input.title,
     description: input.description,
     type: input.type,

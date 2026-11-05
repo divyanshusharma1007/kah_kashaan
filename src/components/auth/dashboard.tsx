@@ -18,6 +18,7 @@ const adminNavigation = [
   { href: "/dashboard/requests", label: "Requests", icon: "requests" },
   { href: "/dashboard/users", label: "Accounts", icon: "artists" },
   { href: "/dashboard/sponsors", label: "Sponsors", icon: "sponsors" },
+  { href: "/dashboard/settings", label: "Runtime settings", icon: "content" },
 ] as const;
 
 function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "artists" | "artist" | "sponsors" | "content" | "requests" }) {
@@ -103,6 +104,7 @@ function routeTitle(pathname: string, isAdmin: boolean): string {
   if (pathname.startsWith("/dashboard/requests")) return "Requests";
   if (pathname.startsWith("/dashboard/users")) return "Account directory";
   if (pathname.startsWith("/dashboard/sponsors")) return "Sponsors";
+  if (pathname.startsWith("/dashboard/settings")) return "Runtime settings";
   return "Overview";
 }
 
@@ -452,6 +454,7 @@ export function DashboardHome() {
             eventPrice?: unknown;
             paymentMethod?: unknown;
             paymentStatus?: unknown;
+            posterReference?: unknown;
             willPerform?: unknown;
             skillNames?: unknown;
           };
@@ -476,6 +479,7 @@ export function DashboardHome() {
               registration.paymentStatus === "not-required"
               ? { paymentStatus: registration.paymentStatus }
               : {}),
+            ...(typeof registration.posterReference === "string" ? { posterReference: registration.posterReference } : {}),
             ...(typeof registration.willPerform === "boolean" ? { willPerform: registration.willPerform } : {}),
             ...(Array.isArray(registration.skillNames) &&
               registration.skillNames.every((skill) => typeof skill === "string")
@@ -702,9 +706,16 @@ export function DashboardHome() {
                     </p>
                   )}
                   {registration.eventId && (
-                    <Link className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/[0.1] px-4 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#e4d9bc] transition hover:border-[#d9af57]/45 hover:text-white" href={`/events/${registration.eventId}`}>
-                      Event details <span aria-hidden="true">→</span>
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <Link className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/[0.1] px-4 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#e4d9bc] transition hover:border-[#d9af57]/45 hover:text-white" href={`/events/${registration.eventId}`}>
+                        Event details <span aria-hidden="true">→</span>
+                      </Link>
+                      {registration.posterReference && (
+                        <a className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#d9af57]/35 px-4 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#f0ddab] transition hover:border-[#d9af57]/70" href={`/api/artist/registrations/poster?event=${encodeURIComponent(registration.eventId)}`}>
+                          Download poster
+                        </a>
+                      )}
+                    </div>
                   )}
                 </div>
               </article>

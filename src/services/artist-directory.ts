@@ -21,6 +21,7 @@ export type ArtistRegistrationInput = {
   skillNames?: string[];
   paymentMethod?: "razorpay" | "at-event" | "free";
   paymentStatus?: "paid" | "due" | "not-required";
+  posterReference?: string;
   paymentId?: string;
   razorpayOrderId?: string;
   paidEventPrice?: number;
@@ -946,6 +947,34 @@ export async function listRegistrationsForArtist(
         : {}),
       willPerform: registration.willPerform !== false,
       ...(registration.skillNames ? { skillNames: registration.skillNames } : {}),
+      ...(registration.posterReference ? { posterReference: registration.posterReference } : {}),
     };
   });
+}
+
+export async function getArtistRegistrationPoster(
+  email: string,
+  eventId: string,
+): Promise<string | null | undefined> {
+  const client = await getMongoClient();
+  if (!client) return null;
+  const registration = await client
+    .db(process.env.MONGODB_DB?.trim() || undefined)
+    .collection<RegistrationDocument>("artistRegistrations")
+    .findOne({ emailNormalized: email.toLowerCase(), eventId });
+  return registration?.posterReference;
+}
+
+export async function setArtistRegistrationPoster(
+  email: string,
+  eventId: string,
+  posterReference: string,
+): Promise<boolean | null> {
+  const client = await getMongoClient();
+  if (!client) return null;
+  const result = await client
+    .db(process.env.MONGODB_DB?.trim() || undefined)
+    .collection<RegistrationDocument>("artistRegistrations")
+    .updateOne({ emailNormalized: email.toLowerCase(), eventId }, { $set: { posterReference } });
+  return result.matchedCount > 0;
 }

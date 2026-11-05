@@ -4,6 +4,7 @@ import { AuthProvider } from "@/components/auth/auth-context";
 import { PageMotion } from "@/components/home/page-motion";
 import { Cormorant_Garamond, Great_Vibes } from "next/font/google";
 import "./globals.css";
+import { getRuntimeConfig } from "@/services/runtime-config";
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-display",
@@ -23,7 +24,8 @@ export const metadata: Metadata = {
     "Kah-Kashaan is a literary and cultural event platform for mentorship, workshops, open mic, and community gatherings.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  await getRuntimeConfig();
   return (
     <html
       lang="en"

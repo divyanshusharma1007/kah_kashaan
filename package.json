@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node ./scripts/dev.cjs",
+    "dev:canva": "node ./scripts/dev.cjs -H 0.0.0.0 -p 8080",
     "build": "node ./scripts/build.cjs",
     "start": "node ./scripts/start.cjs",
     "lint": "eslint"

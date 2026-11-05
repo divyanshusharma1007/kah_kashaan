@@ -33,6 +33,34 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+### Canva local preview
+
+If the Canva Developer Portal is configured with `http://localhost:8080/` as the
+local app URL, start the preview server with:
+
+```bash
+npm run dev:canva
+```
+
+This binds the development server to `0.0.0.0:8080`, which allows Canva's
+browser preview to reach it. Keep using `npm run dev` for the normal website
+workflow on port `3000`. The Canva OAuth redirect URI for the website remains
+`http://localhost:3000/api/admin/canva/callback`; it is separate from Canva's
+local app preview URL. If the Canva preview still reports a bundle error, open
+the preview in Chrome and allow local-network access for Canva.
+
+For the deployed app, set the Canva Developer Portal's app URL to
+`https://kah-kashaan.in/`. When the local server is not running, Canva then
+loads the deployed app from that URL. Production OAuth uses
+`https://kah-kashaan.in/api/admin/canva/callback`; local requests continue to
+use the localhost callback.
+
+The Canva integration follows the OAuth flow used by Canva's official Connect
+API starter kit. Configure `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`,
+`CANVA_REDIRECT_URI`, and `CANVA_SCOPES` in the active environment, then use
+the **Connect Canva** link in the admin event editor. OAuth tokens are stored
+in MongoDB and refreshed server-side; `CANVA_ACCESS_TOKEN` is not used.
+
 ## Account and event-registration demo
 
 - Artist accounts can be created at `/signup`. The `/reserve` form saves event registrations in MongoDB and creates a browser-local demo session; it does not create a server account.

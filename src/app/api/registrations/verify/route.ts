@@ -3,6 +3,8 @@ import { hasValidRequestOrigin } from "@/services/request-origin";
 import {
   createArtistRegistration,
   type ArtistRegistrationInput,
+  getArtistProfile,
+  setArtistRegistrationPoster,
 } from "@/services/artist-directory";
 import { getSignedInArtist } from "@/services/artist-auth";
 import { getMongoClient } from "@/services/mongodb";
@@ -12,6 +14,9 @@ import {
   verifyRazorpaySignature,
 } from "@/services/razorpay";
 import { safelyNotifyAdmin } from "@/services/admin-notifications";
+import { getUpcomingPublishedEvent } from "@/services/events";
+import { createAndStoreArtistPoster, CanvaError } from "@/services/canva";
+import { sendArtistPosterEmail } from "@/services/artist-poster-email";
 
 type PaymentOrder = ArtistRegistrationInput & {
   _id: string;
@@ -141,6 +146,30 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.error("Registration was saved but its Razorpay order could not be marked completed.", error);
+    }
+    if (order.eventId) {
+      try {
+        const [profile, event] = await Promise.all([
+          getArtistProfile(user.email),
+          getUpcomingPublishedEvent(order.eventId),
+        ]);
+        if (profile?.photoFileId && event?.canvaTemplateId) {
+          const generated = await createAndStoreArtistPoster({
+            templateId: event.canvaTemplateId,
+            artistName: user.name,
+            photoReference: profile.photoFileId,
+          });
+          await setArtistRegistrationPoster(user.email, order.eventId, generated.reference);
+          await sendArtistPosterEmail({
+            email: user.email,
+            name: user.name,
+            eventName: order.eventName,
+            poster: generated.body,
+          });
+        }
+      } catch (error) {
+        console.error("Paid registration was saved but the Canva poster could not be generated.", error instanceof CanvaError ? error.message : error);
+      }
     }
     await safelyNotifyAdmin("Paid event registration", [
       `Artist: ${user.name}`,

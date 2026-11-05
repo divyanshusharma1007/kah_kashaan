@@ -5,7 +5,7 @@ const nextBin = require.resolve("next/dist/bin/next");
 
 const child = spawn(
   process.execPath,
-  [nextBin, "dev", ...process.argv.slice(2)],
+  [nextBin, "dev", "--webpack", ...process.argv.slice(2)],
   {
     stdio: "inherit",
     env: process.env,

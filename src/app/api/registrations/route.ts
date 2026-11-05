@@ -4,11 +4,14 @@ import {
   createArtistRegistration,
   parseArtistRegistration,
   getArtistProfile,
+  setArtistRegistrationPoster,
 } from "@/services/artist-directory";
 import { getSignedInArtist } from "@/services/artist-auth";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 import { getUpcomingPublishedEvent } from "@/services/events";
 import { safelyNotifyAdmin } from "@/services/admin-notifications";
+import { createAndStoreArtistPoster, CanvaError } from "@/services/canva";
+import { sendArtistPosterEmail } from "@/services/artist-poster-email";
 
 function jsonResponse(body: object, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -92,6 +95,26 @@ export async function POST(request: NextRequest) {
     }
     if (result === "artist-not-qualified") {
       return jsonResponse({ error: "Your profile does not include any of this event's required skills." }, 403);
+    }
+    if (event.canvaTemplateId && profile.photoFileId) {
+      try {
+        const generated = await createAndStoreArtistPoster({
+          templateId: event.canvaTemplateId,
+          artistName: user.name,
+          photoReference: profile.photoFileId,
+        });
+        await setArtistRegistrationPoster(user.email, event.id, generated.reference);
+        if (registration.paymentMethod !== "at-event") {
+          await sendArtistPosterEmail({
+            email: user.email,
+            name: user.name,
+            eventName: event.title,
+            poster: generated.body,
+          });
+        }
+      } catch (error) {
+        console.error("Artist registration was saved but the Canva poster could not be generated.", error instanceof CanvaError ? error.message : error);
+      }
     }
     await safelyNotifyAdmin("New event registration", [
       `Artist: ${user.name}`,
