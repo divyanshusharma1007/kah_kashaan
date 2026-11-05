@@ -75,6 +75,7 @@ export type AdminOverviewData = {
   recentEvents: RecentEvent[];
   recentRegistrations: RecentRegistration[];
   eventCommitments: EventCommitment[];
+  calendarEvents: RecentEvent[];
 };
 
 type UserDocument = {
@@ -163,6 +164,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
     eventCount,
     upcomingEventCount,
     recentEvents,
+    calendarEvents,
     monthRegistrations,
     recentRegistrationDocuments,
     eventCommitmentDocuments,
@@ -197,6 +199,12 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       .project<EventDocument>({ title: 1, type: 1, startsAt: 1, dates: 1, city: 1, status: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
       .limit(10)
+      .toArray(),
+    events
+      .find({})
+      .project<EventDocument>({ title: 1, type: 1, startsAt: 1, dates: 1, city: 1, status: 1, createdAt: 1 })
+      .sort({ startsAt: 1 })
+      .limit(100)
       .toArray(),
     registrations
       .find({ createdAt: { $gte: month, $lte: now } })
@@ -318,6 +326,16 @@ export async function getAdminOverview(): Promise<AdminOverviewData | null> {
       createdAt: registration.createdAt.toISOString(),
       willPerform: registration.willPerform === true,
       paymentMethod: registration.paymentMethod ?? "legacy",
+    })),
+    calendarEvents: calendarEvents.map((event) => ({
+      id: event._id.toHexString(),
+      title: event.title,
+      type: event.type,
+      startsAt: event.startsAt.toISOString(),
+      dates: (event.dates?.length ? event.dates : [event.startsAt]).map((date) => date.toISOString()),
+      city: event.city ?? "",
+      status: event.status,
+      createdAt: event.createdAt.toISOString(),
     })),
   };
 }

@@ -94,6 +94,8 @@ function isOverview(value: unknown): value is AdminOverviewData {
     overview.recentRegistrations.every(isRecentRegistration) &&
     Array.isArray(overview.eventCommitments) &&
     overview.eventCommitments.every(isEventCommitment) &&
+    Array.isArray(overview.calendarEvents) &&
+    overview.calendarEvents.every(isRecentEvent) &&
     Array.isArray(overview.pendingFeatureRequests) &&
     overview.pendingFeatureRequests.every(isPendingFeatureRequest);
 }
@@ -141,6 +143,7 @@ export function AdminOverview() {
   const [error, setError] = useState("");
   const [activeRegistration, setActiveRegistration] = useState(0);
   const [activeEvent, setActiveEvent] = useState(0);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -175,6 +178,11 @@ export function AdminOverview() {
   const recentEvents = overview?.recentEvents ?? [];
   const selectedRegistration = recentRegistrations[activeRegistration];
   const selectedEvent = recentEvents[activeEvent];
+  const calendarEvents = overview?.calendarEvents ?? [];
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
 
   useEffect(() => {
     if (recentRegistrations.length < 2) return;
@@ -200,6 +208,29 @@ export function AdminOverview() {
 
   function moveEvent(direction: -1 | 1) {
     setActiveEvent((index) => (index + direction + recentEvents.length) % recentEvents.length);
+  }
+
+  const calendarDays = (() => {
+    const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const startOffset = firstDay.getDay();
+    const totalDays = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+    return Array.from({ length: Math.ceil((startOffset + totalDays) / 7) * 7 }, (_, index) => {
+      const day = index - startOffset + 1;
+      return day > 0 && day <= totalDays ? new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day) : null;
+    });
+  })();
+  const eventDateKey = (date: Date) => new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  const calendarEventsByDate = new Map<string, RecentEvent[]>();
+  for (const event of calendarEvents) {
+    for (const date of event.dates) {
+      const key = eventDateKey(new Date(date));
+      calendarEventsByDate.set(key, [...(calendarEventsByDate.get(key) ?? []), event]);
+    }
   }
 
   const statistics = [
@@ -291,11 +322,27 @@ export function AdminOverview() {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
         {statistics.map((stat) => (
+          stat.label === "Events" ? (
+            <button
+              aria-label={`${stat.label}: ${loading ? "loading" : stat.value}. Open event calendar.`}
+              className={`block w-full min-w-0 rounded-xl border ${stat.border} bg-[#10100f] p-2 text-left transition hover:border-[#d9af57]/40 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9af57] sm:p-2.5`}
+              onClick={() => setCalendarOpen(true)}
+              key={stat.label}
+              type="button"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-[9px] font-semibold uppercase tracking-[0.15em] text-[#928873] sm:text-[10px] sm:tracking-[0.19em]">{stat.label}</p>
+                <span aria-hidden="true" className={`text-base ${stat.accent}`}>{stat.icon}</span>
+              </div>
+              <p className="mt-1 truncate font-[var(--font-display)] text-xl text-[#fff5d9] sm:text-2xl">{loading ? "—" : stat.value}</p>
+              <p className="mt-1 truncate text-[10px] text-[#827864] sm:text-xs">{stat.note}</p>
+            </button>
+          ) : (
           <Link
             aria-label={`${stat.label}: ${loading ? "loading" : stat.value}. ${stat.note}`}
-            className={`block min-w-0 rounded-xl border ${stat.border} bg-[#10100f] p-2.5 transition hover:border-[#d9af57]/40 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9af57] sm:p-3`}
+            className={`block min-w-0 rounded-xl border ${stat.border} bg-[#10100f] p-2 transition hover:border-[#d9af57]/40 hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9af57] sm:p-2.5`}
             href={stat.href}
             key={stat.label}
           >
@@ -305,11 +352,12 @@ export function AdminOverview() {
               </p>
               <span aria-hidden="true" className={`text-base ${stat.accent}`}>{stat.icon}</span>
             </div>
-            <p className="mt-1 truncate font-[var(--font-display)] text-2xl text-[#fff5d9]">
+            <p className="mt-1 truncate font-[var(--font-display)] text-xl text-[#fff5d9] sm:text-2xl">
               {loading ? "—" : stat.value}
             </p>
             <p className="mt-1 truncate text-[10px] text-[#827864] sm:text-xs">{stat.note}</p>
           </Link>
+          )
         ))}
       </div>
 
@@ -369,6 +417,44 @@ export function AdminOverview() {
       <p className="mt-1 text-[9px] leading-4 text-[#716954]">
         Account totals exclude accounts awaiting email verification. Online activity is not tracked. Income figures are estimates from registrations and listed ticket prices; payments are not verified.
       </p>
+
+      {calendarOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="event-calendar-dialog-heading" onClick={() => setCalendarOpen(false)}>
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl border border-[#d9af57]/30 bg-[#10100f] p-4 shadow-2xl sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#d9af57]">Schedule</p>
+                <h2 className="mt-1 text-lg font-medium text-[#f0e6ce]" id="event-calendar-dialog-heading">All event dates</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button aria-label="Previous month" className="rounded-lg border border-white/[0.08] px-2 py-1 text-xs text-[#cbbd9f] hover:border-[#d9af57]/40" onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} type="button">←</button>
+                <span className="min-w-28 text-center text-xs text-[#d8c8a2]">
+                  {new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(calendarMonth)}
+                </span>
+                <button aria-label="Next month" className="rounded-lg border border-white/[0.08] px-2 py-1 text-xs text-[#cbbd9f] hover:border-[#d9af57]/40" onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} type="button">→</button>
+                <button aria-label="Close event calendar" className="rounded-lg border border-white/[0.08] px-3 py-2 text-xs text-[#cbbd9f] hover:border-[#d9af57]/40" onClick={() => setCalendarOpen(false)} type="button">Close</button>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-[#827864]">Hover an event date to see its name. Click the date to open the event overview.</p>
+            <div className="mt-4 grid grid-cols-7 gap-1">
+              {calendarDays.map((day, index) => {
+                const eventsOnDay = day ? calendarEventsByDate.get(eventDateKey(day)) ?? [] : [];
+                return (
+                  <div className={`group relative min-h-16 rounded-lg border p-2 text-xs ${day ? "border-white/[0.06] bg-black/15 text-[#cbbd9f]" : "border-transparent"}`} key={`dialog-${day?.toISOString() ?? index}`}>
+                    {day && eventsOnDay.length > 0 ? (
+                      <Link className="block h-full" href={`/dashboard/events/${encodeURIComponent(eventsOnDay[0].id)}/overview`}>
+                        <span>{day.getDate()}</span>
+                        <span className="mt-2 block h-2 w-2 rounded-full bg-[#d9af57]" />
+                      </Link>
+                    ) : day ? <span>{day.getDate()}</span> : null}
+                    {eventsOnDay.length > 0 && <div className="pointer-events-none absolute bottom-full left-0 z-10 mb-2 hidden w-56 rounded-lg border border-[#d9af57]/30 bg-[#181612] p-2 shadow-xl group-hover:block">{eventsOnDay.map((event) => <p className="truncate py-0.5 text-[10px] text-[#f0ddab]" key={`${event.id}-${event.title}-dialog`}>{event.title}</p>)}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 grid gap-3 lg:grid-cols-3">
         <article

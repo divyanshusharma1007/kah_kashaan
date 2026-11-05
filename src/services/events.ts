@@ -21,9 +21,11 @@ export type EventInput = {
   status: EventStatus;
   skillIds: string[];
   sponsorIds: string[];
+  completionNote: string;
 };
 
 export type ManagedEvent = EventInput & {
+  galleryUrls: string[];
   id: string;
   createdAt: string;
   updatedAt: string;
@@ -38,6 +40,8 @@ type EventDocument = Omit<EventInput, "startsAt" | "dates" | "posterUrl" | "skil
   city?: string;
   skillIds?: string[];
   sponsorIds?: string[];
+  completionNote?: string;
+  galleryUrls?: string[];
 };
 
 type EventRegistrationDocument = {
@@ -106,6 +110,8 @@ function serializeEvent(event: WithId<EventDocument>): ManagedEvent {
     status: event.status,
     skillIds: event.skillIds ?? [],
     sponsorIds: event.sponsorIds ?? [],
+    galleryUrls: event.galleryUrls ?? [],
+    completionNote: event.completionNote ?? "",
     createdAt: event.createdAt.toISOString(),
     updatedAt: event.updatedAt.toISOString(),
   };
@@ -131,6 +137,7 @@ export function parseEventInput(value: unknown):
   const organizer = typeof body.organizer === "string" ? body.organizer.trim() : "";
   const skillIds = body.skillIds === undefined ? [] : body.skillIds;
   const sponsorIds = body.sponsorIds === undefined ? [] : body.sponsorIds;
+  const completionNote = typeof body.completionNote === "string" ? body.completionNote.trim() : "";
   const price = body.price;
   const capacity = body.capacity;
   const status = body.status;
@@ -202,6 +209,9 @@ export function parseEventInput(value: unknown):
   if (organizer.length > 120) {
     return { success: false, error: "Organizer must be 120 characters or fewer." };
   }
+  if (completionNote.length > 3000) {
+    return { success: false, error: "The completion note must be 3,000 characters or fewer." };
+  }
   if (status !== "published" && status !== "draft") {
     return { success: false, error: "Choose whether the event should be published or saved as a draft." };
   }
@@ -237,6 +247,7 @@ export function parseEventInput(value: unknown):
       status,
       skillIds: [...new Set(skillIds.map((id) => (id as string).toLowerCase()))],
       sponsorIds: [...new Set(sponsorIds.map((id) => (id as string).toLowerCase()))],
+      completionNote,
     },
   };
 }
@@ -274,6 +285,20 @@ export async function listUpcomingPublishedEvents(): Promise<ManagedEvent[] | nu
   return events
     .map(serializeEvent)
     .sort((left, right) => getNextUpcomingEventDate(left, now).getTime() - getNextUpcomingEventDate(right, now).getTime());
+}
+
+export async function listCompletedPublishedEvents(): Promise<ManagedEvent[] | null> {
+  const client = await getMongoClient();
+  if (!client) return null;
+  const now = new Date();
+  const events = await getEventCollection(client)
+    .find({ status: "published" })
+    .sort({ startsAt: -1 })
+    .limit(50)
+    .toArray();
+  return events
+    .map(serializeEvent)
+    .filter((event) => new Date(event.dates.at(-1) ?? event.startsAt).getTime() < now.getTime());
 }
 
 export async function getUpcomingPublishedEvent(id: string): Promise<ManagedEvent | null | undefined> {
@@ -316,11 +341,36 @@ export async function createEvent(input: EventInput): Promise<ManagedEvent | nul
     status: input.status,
     skillIds: input.skillIds,
     sponsorIds: input.sponsorIds,
+    galleryUrls: [],
+    completionNote: input.completionNote,
     createdAt: now,
     updatedAt: now,
   };
   const result = await getEventCollection(client).insertOne(document);
   return serializeEvent({ ...document, _id: result.insertedId });
+}
+
+export async function updateEventGallery(
+  id: string,
+  galleryUrls: string[],
+): Promise<ManagedEvent | null | undefined> {
+  const client = await getMongoClient();
+  if (!client) return null;
+  const objectId = new ObjectId(id);
+  const result = await getEventCollection(client).updateOne(
+    { _id: objectId },
+    { $set: { galleryUrls, updatedAt: new Date() } },
+  );
+  if (result.matchedCount === 0) return undefined;
+  const updated = await getEventCollection(client).findOne({ _id: objectId });
+  return updated ? serializeEvent(updated) : undefined;
+}
+
+export async function getPublishedEvent(id: string): Promise<ManagedEvent | null | undefined> {
+  const client = await getMongoClient();
+  if (!client) return null;
+  const event = await getEventCollection(client).findOne({ _id: new ObjectId(id), status: "published" });
+  return event ? serializeEvent(event) : undefined;
 }
 
 export async function updateEvent(
@@ -346,6 +396,22 @@ export async function updateEvent(
   if (result.matchedCount === 0) return undefined;
 
   const updated = await collection.findOne({ _id: objectId });
+  return updated ? serializeEvent(updated) : undefined;
+}
+
+export async function updateEventCompletionNote(
+  id: string,
+  completionNote: string,
+): Promise<ManagedEvent | null | undefined> {
+  const client = await getMongoClient();
+  if (!client) return null;
+  const objectId = new ObjectId(id);
+  const result = await getEventCollection(client).updateOne(
+    { _id: objectId },
+    { $set: { completionNote, updatedAt: new Date() } },
+  );
+  if (result.matchedCount === 0) return undefined;
+  const updated = await getEventCollection(client).findOne({ _id: objectId });
   return updated ? serializeEvent(updated) : undefined;
 }
 

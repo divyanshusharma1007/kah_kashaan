@@ -4,8 +4,9 @@ import Image from "next/image";
 import { RegistrationForm } from "@/components/home/registration-form";
 import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
-import { getPublicEventSponsors, getUpcomingPublishedEvent, isValidEventId } from "@/services/events";
+import { getPublicEventSponsors, getPublishedEvent, getUpcomingPublishedEvent, isValidEventId } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
+import { listEventFeedback } from "@/services/event-feedback";
 
 type EventDetailsPageProps = {
   params: Promise<{ id: string }>;
@@ -16,17 +17,19 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
   const { id } = await params;
   if (!isValidEventId(id)) notFound();
 
-  const event = await getUpcomingPublishedEvent(id);
+  const [event, upcomingEvent] = await Promise.all([getPublishedEvent(id), getUpcomingPublishedEvent(id)]);
   if (event === null) throw new Error("Event details are temporarily unavailable.");
   if (!event) notFound();
   const eventSkills = await getArtistSkillsByIds(event.skillIds);
   if (!eventSkills) throw new Error("Event skills are temporarily unavailable.");
   const sponsors = await getPublicEventSponsors(event);
   if (!sponsors) throw new Error("Event sponsors are temporarily unavailable.");
+  const feedback = await listEventFeedback(event.id, true);
 
   const { navItems, logo, heroContent } = await getHomePageData();
   const copy = heroContent.publicPages.eventDetail;
   const eventDates = event.dates.length ? event.dates : [event.startsAt];
+  const isUpcoming = Boolean(upcomingEvent);
   const formattedEventDates = eventDates.map((date) => new Intl.DateTimeFormat("en-IN", {
     dateStyle: "full",
     timeStyle: "short",
@@ -52,6 +55,16 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
                 width={900}
               />
             </div>
+          )}
+          {event.galleryUrls.length > 0 && (
+            <section aria-labelledby="event-gallery-heading" className="mb-8">
+              <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]" id="event-gallery-heading">Event gallery</h2>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {event.galleryUrls.map((url, index) => (
+                  <Image alt={`${event.title} event photo ${index + 1}`} className="aspect-square w-full rounded-xl object-cover" height={320} key={url} loading="lazy" src={url} unoptimized width={320} />
+                ))}
+              </div>
+            </section>
           )}
           <p className="text-[10px] uppercase tracking-[0.3em] text-[#d9af57]">{event.type}</p>
           <h1 className="mt-4 break-words font-[var(--font-display)] text-4xl text-[#fff5d9] sm:text-6xl">{event.title}</h1>
@@ -101,9 +114,29 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
             <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]">{copy.aboutHeading}</h2>
             <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[#d8c8a2]">{event.description}</p>
           </div>
+          {event.completionNote && !isUpcoming && (
+            <section className="mt-8 border-t border-white/[0.07] pt-7" aria-labelledby="event-completion-note-heading">
+              <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]" id="event-completion-note-heading">About this event</h2>
+              <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[#d8c8a2]">{event.completionNote}</p>
+            </section>
+          )}
+          {feedback && feedback.length > 0 && (
+            <section aria-labelledby="event-feedback-heading" className="mt-8 border-t border-white/[0.07] pt-7">
+              <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]" id="event-feedback-heading">Artist feedback</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                {feedback.map((item) => (
+                  <blockquote className="rounded-xl border border-white/[0.07] bg-black/20 p-4 text-sm leading-6 text-[#d8c8a2]" key={item.id}>
+                    “{item.review}”
+                    <footer className="mt-3 text-xs text-[#a99b7e]">— {item.artistName}</footer>
+                    {item.photoUrls.length > 0 && <div className="mt-3 flex gap-2">{item.photoUrls.map((url, index) => <Image alt={`${item.artistName}'s event photo ${index + 1}`} className="h-16 w-16 rounded-lg object-cover" height={64} key={url} loading="lazy" src={url} unoptimized width={64} />)}</div>}
+                  </blockquote>
+                ))}
+              </div>
+            </section>
+          )}
         </article>
 
-        <section aria-labelledby="event-registration-heading" className="mt-8">
+        {isUpcoming && <section aria-labelledby="event-registration-heading" className="mt-8">
           <p className="text-[10px] uppercase tracking-[0.3em] text-[#d9af57]">{copy.savePlaceLabel}</p>
           <h2 className="mb-5 mt-2 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="event-registration-heading">
             {copy.registerForPrefix} {event.title}
@@ -115,7 +148,7 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
             selectedEventId={event.id}
             copy={heroContent.publicPages.registrationForm}
           />
-        </section>
+        </section>}
       </main>
     </SiteLayout>
   );

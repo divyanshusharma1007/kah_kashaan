@@ -87,6 +87,7 @@ function DashboardIcon({ name }: { name: "overview" | "events" | "skills" | "art
 function routeTitle(pathname: string, isAdmin: boolean): string {
   if (!isAdmin && pathname === "/dashboard/artist/profile") return "Profile settings";
   if (!isAdmin && pathname === "/dashboard/artist/writing") return "Writing portfolio";
+  if (!isAdmin && pathname === "/dashboard/artist/feedback") return "Event feedback";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/featured")) return "Public profile";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/registration-success")) return "Registration confirmed";
   if (!isAdmin && pathname.startsWith("/dashboard/artist/register")) return "Register for event";
@@ -220,6 +221,17 @@ export function Dashboard({ children }: { children: ReactNode }) {
               Writing portfolio
             </Link>
             <Link
+              aria-current={pathname === "/dashboard/artist/feedback" ? "page" : undefined}
+              className={`mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-xs ${
+                pathname === "/dashboard/artist/feedback" ? "bg-[#d9af57]/10 text-[#f3d98c]" : "text-[#a99b7e] hover:bg-white/[0.04]"
+              }`}
+              href="/dashboard/artist/feedback"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <DashboardIcon name="content" />
+              Event feedback
+            </Link>
+            <Link
               aria-current={pathname.startsWith("/dashboard/artist/featured") ? "page" : undefined}
               className={`mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-xs ${
                 pathname.startsWith("/dashboard/artist/featured") ? "bg-[#d9af57]/10 text-[#f3d98c]" : "text-[#a99b7e] hover:bg-white/[0.04]"
@@ -304,7 +316,9 @@ export function Dashboard({ children }: { children: ReactNode }) {
               <p className="mt-0.5 text-sm text-[#e8dfca]">{routeTitle(pathname, isAdmin)}</p>
             </div>
           </div>
-          <span className="hidden truncate text-xs text-[#827864] sm:block">{user.email}</span>
+          <div className="flex items-center gap-3">
+            <span className="hidden truncate text-xs text-[#827864] sm:block">{user.email}</span>
+          </div>
         </header>
         <section className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-9">
           {(logoutError || sessionError) && (

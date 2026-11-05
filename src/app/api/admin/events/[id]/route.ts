@@ -61,6 +61,12 @@ export async function PUT(request: NextRequest, context: EventRouteContext) {
   if (!parsed.success) return jsonResponse({ error: parsed.error }, 400);
 
   try {
+    const currentEvent = await getAdminEvent(id);
+    if (currentEvent === null) return jsonResponse({ error: "Event management is unavailable. Check the database configuration." }, 503);
+    if (!currentEvent) return jsonResponse({ error: "Event not found." }, 404);
+    if (new Date(currentEvent.dates.at(-1) ?? currentEvent.startsAt).getTime() < Date.now()) {
+      return jsonResponse({ error: "Completed events are locked. Update only the completion note, photos, and feedback visibility." }, 409);
+    }
     const skills = await getArtistSkillsByIds(parsed.data.skillIds);
     if (!skills) return jsonResponse({ error: "Event skills are temporarily unavailable." }, 503);
     if (skills.length !== parsed.data.skillIds.length) {

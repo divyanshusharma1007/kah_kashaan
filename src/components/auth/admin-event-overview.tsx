@@ -6,6 +6,8 @@ import type { ArtistSkill } from "@/services/artist-skills";
 import type { ManagedEvent, ManagedEventRegistration } from "@/services/events";
 import type { ManagedSponsor } from "@/services/sponsors";
 import { getEventLifecycleStatus } from "@/lib/event-lifecycle";
+import Image from "next/image";
+import type { EventFeedback } from "@/services/event-feedback";
 
 type EventOverview = {
   event: ManagedEvent;
@@ -69,6 +71,11 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
   const [registrantQuery, setRegistrantQuery] = useState("");
   const [performanceFilter, setPerformanceFilter] = useState("all");
   const [currentTime, setCurrentTime] = useState(0);
+  const [feedback, setFeedback] = useState<EventFeedback[]>([]);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [completionNote, setCompletionNote] = useState("");
+  const [savingCompletionNote, setSavingCompletionNote] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setCurrentTime(Date.now()), 0);
@@ -91,7 +98,11 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
         }
         if (!response.ok) throw new Error(errorMessage(result, "Could not load event registrations."));
         if (!isEventOverview(result)) throw new Error("The event overview returned an invalid response.");
-        if (active) setOverview(result);
+        if (active) {
+          setOverview(result);
+          setGalleryUrls(result.event.galleryUrls);
+          setCompletionNote(result.event.completionNote);
+        }
       })
       .catch((cause: unknown) => {
         console.error("Could not load event overview.", cause);
@@ -104,6 +115,75 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
       active = false;
     };
   }, [eventId]);
+
+  async function saveCompletionNote() {
+    setSavingCompletionNote(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/events/${encodeURIComponent(eventId)}/completion-note`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completionNote }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(errorMessage(result, "Could not save the completion note."));
+      setOverview((current) => current ? { ...current, event: { ...current.event, completionNote } } : current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save the completion note.");
+    } finally {
+      setSavingCompletionNote(false);
+    }
+  }
+
+  useEffect(() => {
+    fetch(`/api/admin/events/${encodeURIComponent(eventId)}/feedback`, { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok || !result || !Array.isArray(result.feedback)) throw new Error(errorMessage(result, "Could not load event feedback."));
+        setFeedback(result.feedback);
+      })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load event feedback."));
+  }, [eventId]);
+
+  async function toggleFeedback(item: EventFeedback) {
+    const response = await fetch(`/api/admin/events/${encodeURIComponent(eventId)}/feedback`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feedbackId: item.id, visible: !item.visible }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(errorMessage(result, "Could not update feedback visibility."));
+    setFeedback((items) => items.map((current) => current.id === item.id ? { ...current, visible: !item.visible } : current));
+  }
+
+  async function uploadGalleryPhotos(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const selectedFiles = Array.from(files);
+    if (galleryUrls.length + selectedFiles.length > 30) {
+      setError("An event can have up to 30 successful event photos.");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const data = new FormData();
+      selectedFiles.forEach((file) => data.append("photos", file));
+      const upload = await fetch("/api/admin/events/gallery", { method: "POST", body: data });
+      const result = await upload.json();
+      if (!upload.ok || !Array.isArray(result.photoUrls) || !result.photoUrls.every((url: unknown) => typeof url === "string")) {
+        throw new Error(errorMessage(result, "Could not upload event photos."));
+      }
+      const next = [...galleryUrls, ...result.photoUrls];
+      const save = await fetch(`/api/admin/events/${encodeURIComponent(eventId)}/gallery`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ galleryUrls: next }),
+      });
+      const saved = await save.json();
+      if (!save.ok) throw new Error(errorMessage(saved, "Could not save event gallery."));
+      setGalleryUrls(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not upload event photos.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
 
   async function updatePerformance(registration: ManagedEventRegistration) {
     const willPerform = !registration.willPerform;
@@ -184,6 +264,60 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
                   {overview.event.city ? `, ${overview.event.city}` : ""}
                 </p>
               </div>
+              <section className="mt-6 rounded-2xl border border-white/[0.07] bg-[#10100f] p-5" aria-labelledby="event-gallery-admin-heading">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]" id="event-gallery-admin-heading">Successful event photos</h2>
+                  <label className="cursor-pointer rounded-full border border-[#d9af57]/40 px-3 py-2 text-[10px] uppercase tracking-[0.15em] text-[#f0ddab]">
+                    {uploadingPhoto ? "Uploading..." : "Add photos"}
+                    <input accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={uploadingPhoto || galleryUrls.length >= 30} multiple onChange={(event) => uploadGalleryPhotos(event.target.files)} type="file" />
+                  </label>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                  {galleryUrls.map((url, index) => <Image alt={`${overview.event.title} event photo ${index + 1}`} className="aspect-square rounded-lg object-cover" height={120} key={url} src={url} unoptimized width={120} />)}
+                </div>
+              </section>
+              <section className="mt-6 rounded-2xl border border-white/[0.07] bg-[#10100f] p-5" aria-labelledby="event-feedback-admin-heading">
+                <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]" id="event-feedback-admin-heading">Artist feedback</h2>
+                <div className="mt-4 space-y-3">
+                  {feedback.length === 0 && <p className="text-sm text-[#a99b7e]">No feedback submitted yet.</p>}
+                  {feedback.map((item) => (
+                    <div className="rounded-xl border border-white/[0.07] p-4" key={item.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <p className="text-sm text-[#d8c8a2]"><strong>{item.artistName}</strong> · {item.review}</p>
+                        <button className="rounded-full border border-[#d9af57]/35 px-3 py-1.5 text-[10px] uppercase tracking-[0.12em] text-[#f0ddab]" onClick={() => toggleFeedback(item)} type="button">
+                          {item.visible ? "Hide from website" : "Approve for website"}
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs text-[#8e826c]">{item.visible ? "Visible publicly" : "Hidden from public pages"}</p>
+                      {item.photoUrls.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {item.photoUrls.map((url, index) => (
+                            <Image
+                              alt={`${item.artistName} feedback photo ${index + 1}`}
+                              className="h-16 w-16 rounded-lg object-cover"
+                              height={64}
+                              key={url}
+                              src={url}
+                              unoptimized
+                              width={64}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+              {getEventLifecycleStatus(overview.event.status, overview.event.dates, new Date(currentTime)) === "completed" && (
+                <section className="mt-6 rounded-2xl border border-white/[0.07] bg-[#10100f] p-5" aria-labelledby="event-completion-note-heading">
+                  <h2 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]" id="event-completion-note-heading">About the completed event</h2>
+                  <p className="mt-2 text-sm text-[#a99b7e]">Completed event details are locked. Add or update only this post-event note.</p>
+                  <textarea className="mt-4 min-h-28 w-full rounded-xl border border-white/[0.09] bg-[#0b0b0a] p-3 text-sm text-[#fff5d9] outline-none focus:border-[#d9af57]/50" maxLength={3000} onChange={(event) => setCompletionNote(event.target.value)} value={completionNote} />
+                  <button className="mt-3 rounded-full bg-[#d9af57] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#15120b] disabled:opacity-50" disabled={savingCompletionNote} onClick={() => void saveCompletionNote()} type="button">
+                    {savingCompletionNote ? "Saving..." : "Save event note"}
+                  </button>
+                </section>
+              )}
               <Link
                 className="inline-flex min-h-10 items-center rounded-xl border border-white/[0.12] px-4 text-xs text-[#d8c8a2] hover:border-[#d9af57]/40"
                 href={`/dashboard/events/${encodeURIComponent(eventId)}`}

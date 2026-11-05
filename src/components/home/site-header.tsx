@@ -186,6 +186,8 @@ export function SiteHeader({ navItems, logo, programs = [], copy }: SiteHeaderPr
       >
         <div className="overflow-hidden">
           <div className="flex flex-col gap-4 pb-2 text-center text-sm uppercase tracking-[0.2em] text-[#e7d7aa]">
+            <div className="flex justify-center normal-case tracking-normal">
+            </div>
             {navItems.map((item) => (
               <div className="flex flex-col items-center" key={item.label}>
                 <Link

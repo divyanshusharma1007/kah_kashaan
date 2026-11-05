@@ -1,13 +1,18 @@
 import type { EventItem } from "@/data/home-page-data";
 import type { PublicPageCopy } from "@/data/public-page-copy";
 import Link from "next/link";
+import Image from "next/image";
+import type { ManagedEvent } from "@/services/events";
+import type { EventFeedback } from "@/services/event-feedback";
 
 type EventsSectionProps = {
   upcomingEvents: EventItem[];
+  completedEvents?: { event: ManagedEvent; feedback: EventFeedback[] | null }[];
+  showAllCompletedEventsLink?: boolean;
   copy: PublicPageCopy["eventsPage"];
 };
 
-export function EventsSection({ upcomingEvents, copy }: EventsSectionProps) {
+export function EventsSection({ upcomingEvents, completedEvents = [], showAllCompletedEventsLink = false, copy }: EventsSectionProps) {
   const nextEvent = upcomingEvents[0];
 
   return (
@@ -111,6 +116,42 @@ export function EventsSection({ upcomingEvents, copy }: EventsSectionProps) {
           ))}
         </div>
       </div>
+      <section className="mt-10" aria-labelledby="past-events-heading">
+        <p className="text-[10px] uppercase tracking-[0.35em] text-[#d9af57]">Recently completed</p>
+        <h2 className="mt-3 font-[var(--font-display)] text-3xl text-[#fff5d9]" id="past-events-heading">Recent event memories</h2>
+        {completedEvents.length === 0 ? (
+          <div className="mt-5 rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111] p-6">
+            <p className="text-sm leading-6 text-[#b9ab8c]">Completed events, photos, and approved artist reviews will appear here.</p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 grid gap-5 md:grid-cols-2">
+              {completedEvents.map(({ event, feedback }) => (
+                <article className="overflow-hidden rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111]" key={event.id}>
+                  {event.galleryUrls[0] && <Image alt={`${event.title} event photo`} className="h-52 w-full object-cover" height={320} src={event.galleryUrls[0]} unoptimized width={640} />}
+                  <div className="p-5">
+                    <h3 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]">{event.title}</h3>
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#d8c8a2]">{event.description}</p>
+                    {event.completionNote && <p className="mt-3 text-sm leading-6 text-[#cbbd9f]">{event.completionNote}</p>}
+                    {feedback?.slice(0, 2).map((item) => (
+                      <blockquote className="mt-4 border-l border-[#d9af57]/40 pl-3 text-sm italic text-[#cbbd9f]" key={item.id}>
+                        “{item.review}” <cite className="not-italic text-xs text-[#8e826c]">— {item.artistName}</cite>
+                      </blockquote>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+            {showAllCompletedEventsLink && (
+              <div className="mt-6 text-center">
+                <Link className="inline-flex rounded-full border border-[#d9af57]/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f0ddab] hover:border-[#f2d98b]" href="/events">
+                  More completed events
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </section>
   );
 }

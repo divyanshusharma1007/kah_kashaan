@@ -12,14 +12,21 @@ import { defaultHeroContent } from "@/data/hero-content";
 import { getPublicEventData } from "@/data/public-event-data";
 import { getHomepageHeroContent } from "@/services/homepage-content";
 import { listWebsiteSponsors } from "@/services/sponsors";
+import { listCompletedPublishedEvents } from "@/services/events";
+import { listEventFeedback } from "@/services/event-feedback";
 
 export default async function Home() {
   await connection();
-  const [homePageData, storedHeroContent, websiteSponsors] = await Promise.all([
+  const [homePageData, storedHeroContent, websiteSponsors, completedEvents] = await Promise.all([
     getHomePageData(),
     getHomepageHeroContent(),
     listWebsiteSponsors(),
+    listCompletedPublishedEvents(),
   ]);
+  const completedWithFeedback = await Promise.all((completedEvents ?? []).map(async (event) => ({
+    event,
+    feedback: await listEventFeedback(event.id, true),
+  })));
   const {
     navItems,
     logo,
@@ -42,7 +49,7 @@ export default async function Home() {
       <HeroSection content={content} stats={content.stats ?? stats} featuredEvent={currentFeaturedEvent} upcomingEvents={upcomingEvents} />
       <AboutSection highlights={content.about.highlights ?? aboutHighlights} eyebrow={content.about.eyebrow} heading={content.about.heading} />
       <ProgramSection programs={content.programs.items ?? programs} eyebrow={content.programs.eyebrow} heading={content.programs.heading} exploreLabel={content.publicPages.programDetail.exploreProgram} emptyMessage={content.publicPages.home.noPrograms} />
-      <EventsSection upcomingEvents={upcomingEvents} copy={content.publicPages.eventsPage} />
+      <EventsSection upcomingEvents={upcomingEvents} completedEvents={completedWithFeedback.slice(0, 5)} showAllCompletedEventsLink={completedWithFeedback.length > 5} copy={content.publicPages.eventsPage} />
       <FeaturedArtists preview content={content.featuredArtists} copy={content.publicPages.artistsPage} />
       <CommunitySection metrics={content.community.metrics ?? communityMetrics} eyebrow={content.community.eyebrow} heading={content.community.heading} description={content.community.description} />
       <SponsorsSection

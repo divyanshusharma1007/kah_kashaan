@@ -23,6 +23,7 @@ type EventForm = {
   status: EventStatus;
   skillIds: string[];
   sponsorIds: string[];
+  completionNote: string;
 };
 
 const emptyForm: EventForm = {
@@ -39,6 +40,7 @@ const emptyForm: EventForm = {
   status: "published",
   skillIds: [],
   sponsorIds: [],
+  completionNote: "",
 };
 
 const inputClass =
@@ -66,6 +68,7 @@ function isManagedEvent(value: unknown): value is ManagedEvent {
     event.skillIds.every((id) => typeof id === "string") &&
     Array.isArray(event.sponsorIds) &&
     event.sponsorIds.every((id) => typeof id === "string") &&
+    typeof event.completionNote === "string" &&
     typeof event.createdAt === "string" &&
     typeof event.updatedAt === "string";
 }
@@ -226,6 +229,7 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             status: event.status,
             skillIds: event.skillIds,
             sponsorIds: event.sponsorIds,
+            completionNote: event.completionNote,
           });
         }
       })
@@ -303,6 +307,7 @@ export function AdminEventEditor({ eventId }: { eventId?: string }) {
             startsAt: dates[0],
             price,
             capacity,
+            completionNote: form.completionNote,
           }),
         },
       );
