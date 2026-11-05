@@ -61,6 +61,11 @@ API starter kit. Configure `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`,
 the **Connect Canva** link in the admin event editor. OAuth tokens are stored
 in MongoDB and refreshed server-side; `CANVA_ACCESS_TOKEN` is not used.
 
+The client ID and client secret must come from the same Canva app. If Canva
+shows **The client ID is invalid**, copy the current values from the app's
+Credentials page, verify that the redirect URI exactly matches the configured
+callback URL, and restart the development server after changing `.env.local`.
+
 ## Account and event-registration demo
 
 - Artist accounts can be created at `/signup`. The `/reserve` form saves event registrations in MongoDB and creates a browser-local demo session; it does not create a server account.

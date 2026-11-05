@@ -7,6 +7,11 @@ export async function GET(request: NextRequest) {
   if (unauthorized) return unauthorized;
   const state = request.nextUrl.searchParams.get("state") ?? "";
   const code = request.nextUrl.searchParams.get("code") ?? "";
+  const oauthError = request.nextUrl.searchParams.get("error_description")
+    ?? request.nextUrl.searchParams.get("error");
+  if (oauthError) {
+    return NextResponse.json({ error: `Canva authorization failed: ${oauthError}` }, { status: 400 });
+  }
   const cookie = request.cookies.get("canva_oauth")?.value ?? "";
   const [expectedState, codeVerifier] = cookie.split(".");
   if (!state || !code || !expectedState || state !== expectedState || !codeVerifier) {

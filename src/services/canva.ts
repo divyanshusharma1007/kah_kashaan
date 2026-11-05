@@ -19,6 +19,26 @@ export class CanvaError extends Error {
 }
 
 type CanvaToken = { accessToken: string; refreshToken?: string; expiresAt?: Date };
+type CanvaOAuthError = {
+  error?: unknown;
+  error_description?: unknown;
+  message?: unknown;
+};
+
+function oauthErrorMessage(result: unknown, fallback: string): string {
+  if (!result || typeof result !== "object") return fallback;
+  const error = result as CanvaOAuthError;
+  if (typeof error.error_description === "string" && error.error_description.trim()) {
+    return `Canva authorization failed: ${error.error_description.trim()}`;
+  }
+  if (typeof error.message === "string" && error.message.trim()) {
+    return `Canva authorization failed: ${error.message.trim()}`;
+  }
+  if (typeof error.error === "string" && error.error.trim()) {
+    return `Canva authorization failed: ${error.error.trim()}`;
+  }
+  return fallback;
+}
 
 function isLocalRequest(request: NextRequest): boolean {
   const hostname = request.nextUrl.hostname.toLowerCase();
@@ -115,7 +135,7 @@ async function getAccessToken(): Promise<CanvaToken> {
   });
   const result = await response.json().catch(() => null);
   if (!response.ok || !result || typeof result !== "object" || typeof result.access_token !== "string") {
-    throw new CanvaError("Canva authorization expired. Connect Canva again.");
+    throw new CanvaError(oauthErrorMessage(result, "Canva authorization expired. Connect Canva again."));
   }
   const refreshed = {
     accessToken: result.access_token,
@@ -165,7 +185,7 @@ export async function exchangeCanvaCode(
   });
   const result = await response.json().catch(() => null);
   if (!response.ok || !result || typeof result !== "object" || typeof result.access_token !== "string") {
-    throw new CanvaError("Canva authorization could not be completed.");
+    throw new CanvaError(oauthErrorMessage(result, "Canva authorization could not be completed."));
   }
   await saveToken({
     accessToken: result.access_token,
