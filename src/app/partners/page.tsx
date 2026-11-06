@@ -6,6 +6,13 @@ import { getHomePageData } from "@/data/home-page-data";
 import { listWebsiteSponsors } from "@/services/sponsors";
 import { getHomepageHeroContent } from "@/services/homepage-content";
 import { defaultHeroContent } from "@/data/hero-content";
+import { createPageMetadata } from "@/lib/seo";
+
+export const metadata = createPageMetadata(
+  "Kah-Kashaan Partners",
+  "Meet the organizations and creative partners supporting Kah-Kashaan cultural events and community programs.",
+  "/partners",
+);
 
 export default async function PartnersPage() {
   await connection();

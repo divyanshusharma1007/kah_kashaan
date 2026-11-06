@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
 import type { ManagedSponsor, SponsorInput } from "@/services/sponsors";
 import { AdminSponsorInquiries } from "@/components/auth/admin-sponsor-inquiries";
+import { SharePublicPageButton } from "@/components/auth/share-public-page-button";
 
 const emptySponsor: SponsorInput = {
   name: "",
@@ -377,6 +378,7 @@ export function AdminSponsorsDashboard() {
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-2 border-t border-white/[0.06] pt-3 sm:border-0 sm:pt-0">
+                  {sponsor.isWebsiteSponsor && <SharePublicPageButton path={`/partners/${encodeURIComponent(sponsor.slug)}`} />}
                   <button className="min-h-9 rounded-lg border border-white/[0.1] px-3 text-xs text-[#d8c8a2] hover:border-[#d9af57]/40" onClick={() => beginEdit(sponsor)} type="button">Edit</button>
                   <button className="min-h-9 rounded-lg border border-red-300/20 px-3 text-xs text-red-200 hover:border-red-300/50" onClick={() => void removeSponsor(sponsor)} type="button">Delete</button>
                 </div>

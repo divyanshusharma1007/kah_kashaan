@@ -2,11 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { AdminOverview } from "@/components/auth/admin-overview";
-import { ArtistFeatureRequest } from "@/components/auth/artist-feature-request";
 import { useAuth, type ArtistRegistration } from "@/components/auth/auth-context";
+import { fetchWhenIdle } from "@/lib/client-idle-fetch";
+
+const AdminOverview = dynamic(
+  () => import("@/components/auth/admin-overview").then((module) => module.AdminOverview),
+  { loading: () => <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">Loading admin overview...</p> },
+);
+
+const ArtistFeatureRequest = dynamic(
+  () => import("@/components/auth/artist-feature-request").then((module) => module.ArtistFeatureRequest),
+  { loading: () => <p className="rounded-xl border border-white/[0.07] bg-[#10100f] p-5 text-sm text-[#a99b7e]">Loading public profile...</p> },
+);
 
 const adminNavigation = [
   { href: "/dashboard", label: "Overview", icon: "overview" },
@@ -319,6 +329,12 @@ export function Dashboard({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              className="hidden min-h-9 items-center rounded-lg border border-[#d9af57]/25 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#edcf81] transition hover:border-[#d9af57]/55 sm:inline-flex"
+              href="/"
+            >
+              Open public site
+            </Link>
             <span className="hidden truncate text-xs text-[#827864] sm:block">{user.email}</span>
           </div>
         </header>
@@ -426,7 +442,7 @@ export function DashboardHome() {
     if (!user?.provider || user.role !== "artist") return;
 
     let active = true;
-    fetch("/api/artist/registrations", { cache: "no-store" })
+    fetchWhenIdle("/api/artist/registrations", { cache: "no-store" })
       .then(async (response) => {
         let result: unknown;
         try {

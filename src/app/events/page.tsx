@@ -7,6 +7,13 @@ import { getHomepageHeroContent } from "@/services/homepage-content";
 import { defaultHeroContent } from "@/data/hero-content";
 import { listCompletedPublishedEvents } from "@/services/events";
 import { listEventFeedback } from "@/services/event-feedback";
+import { createPageMetadata } from "@/lib/seo";
+
+export const metadata = createPageMetadata(
+  "Upcoming Poetry & Cultural Events",
+  "Find upcoming Kah-Kashaan poetry events, shayari open mics, workshops, music gatherings, and cultural experiences.",
+  "/events",
+);
 
 export default async function EventsPage() {
   await connection();

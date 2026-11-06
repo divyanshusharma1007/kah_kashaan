@@ -4,10 +4,21 @@ import { SiteLayout } from "@/components/home/site-layout";
 import { ProgramSection } from "@/components/home/program-section";
 import { getHomePageData } from "@/data/home-page-data";
 import { findProgramCategory } from "@/data/program-categories";
+import { cleanDescription, createPageMetadata } from "@/lib/seo";
 
 type ProgramCategoryPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: ProgramCategoryPageProps) {
+  const [{ slug }, home] = await Promise.all([params, getHomePageData()]);
+  const category = findProgramCategory(home.heroContent.programs.items, slug);
+  return createPageMetadata(
+    category ? `${category.label} Programs` : "Creative Programs",
+    cleanDescription(category?.programs.map((program) => program.description).join(" ") ?? "Explore Kah-Kashaan creative programs."),
+    `/programs/category/${encodeURIComponent(slug)}`,
+  );
+}
 
 export default async function ProgramCategoryPage({ params }: ProgramCategoryPageProps) {
   const [{ slug }, home] = await Promise.all([params, getHomePageData()]);

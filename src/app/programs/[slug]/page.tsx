@@ -4,10 +4,21 @@ import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
 import { defaultHeroContent } from "@/data/hero-content";
 import { getHomepageHeroContent } from "@/services/homepage-content";
+import { cleanDescription, createPageMetadata } from "@/lib/seo";
 
 type ProgramPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: ProgramPageProps) {
+  const [{ slug }, content] = await Promise.all([params, getHomepageHeroContent()]);
+  const program = (content ?? defaultHeroContent).programs.items.find((item) => item.slug === slug);
+  return createPageMetadata(
+    program ? `${program.title} Program` : "Creative Programs",
+    cleanDescription(program?.description ?? "Explore Kah-Kashaan's creative programs."),
+    `/programs/${encodeURIComponent(slug)}`,
+  );
+}
 
 export default async function ProgramPage({ params }: ProgramPageProps) {
   const [{ slug }, home, content] = await Promise.all([

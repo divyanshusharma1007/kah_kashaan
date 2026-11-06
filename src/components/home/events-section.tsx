@@ -128,7 +128,7 @@ export function EventsSection({ upcomingEvents, completedEvents = [], showAllCom
             <div className="mt-5 grid gap-5 md:grid-cols-2">
               {completedEvents.map(({ event, feedback }) => (
                 <article className="overflow-hidden rounded-[1.75rem] border border-[#d9af57]/20 bg-[#111111]" key={event.id}>
-                  {event.galleryUrls[0] && <Image alt={`${event.title} event photo`} className="h-52 w-full object-cover" height={320} src={event.galleryUrls[0]} unoptimized width={640} />}
+                  {event.galleryUrls[0] && <Image alt={`${event.title} event photo`} className="h-52 w-full object-cover" height={320} loading="lazy" src={event.galleryUrls[0]} unoptimized width={640} />}
                   <div className="p-5">
                     <h3 className="font-[var(--font-display)] text-2xl text-[#f7ebc0]">{event.title}</h3>
                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#d8c8a2]">{event.description}</p>

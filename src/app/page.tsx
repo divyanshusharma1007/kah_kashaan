@@ -14,6 +14,13 @@ import { getHomepageHeroContent } from "@/services/homepage-content";
 import { listWebsiteSponsors } from "@/services/sponsors";
 import { listCompletedPublishedEvents } from "@/services/events";
 import { listEventFeedback } from "@/services/event-feedback";
+import { SITE_DESCRIPTION, createPageMetadata } from "@/lib/seo";
+
+export const metadata = createPageMetadata(
+  "Poetry, Music & Cultural Community",
+  SITE_DESCRIPTION,
+  "/",
+);
 
 export default async function Home() {
   await connection();

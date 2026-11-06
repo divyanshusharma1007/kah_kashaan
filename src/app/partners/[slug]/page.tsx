@@ -7,6 +7,18 @@ import { getHomePageData } from "@/data/home-page-data";
 import { getWebsiteSponsorBySlug } from "@/services/sponsors";
 import { getHomepageHeroContent } from "@/services/homepage-content";
 import { defaultHeroContent } from "@/data/hero-content";
+import { cleanDescription, createPageMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const partner = await getWebsiteSponsorBySlug(slug);
+  return createPageMetadata(
+    partner ? `${partner.name} | Kah-Kashaan Partner` : "Kah-Kashaan Partner",
+    cleanDescription(partner?.details || partner?.summary || "A Kah-Kashaan cultural and community partner."),
+    `/partners/${encodeURIComponent(slug)}`,
+    partner?.logoUrl,
+  );
+}
 
 export default async function PartnerProfilePage({
   params,

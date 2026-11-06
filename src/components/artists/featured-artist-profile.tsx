@@ -36,14 +36,21 @@ function isFeaturedArtist(value: unknown): value is ArtistShowcaseData {
     typeof artist.hasPhoto === "boolean";
 }
 
-export function FeaturedArtistProfile({ copy }: { copy: PublicPageCopy["artistDetail"] }) {
+export function FeaturedArtistProfile({
+  copy,
+  initialArtist,
+}: {
+  copy: PublicPageCopy["artistDetail"];
+  initialArtist?: ArtistShowcaseData | null;
+}) {
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const [artist, setArtist] = useState<ArtistShowcaseData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [artist, setArtist] = useState<ArtistShowcaseData | null>(initialArtist ?? null);
+  const [loading, setLoading] = useState(initialArtist === undefined);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (initialArtist !== undefined) return;
     let active = true;
     fetch(`/api/artists/${encodeURIComponent(id)}`, { cache: "no-store" })
       .then(async (response) => {
@@ -73,7 +80,7 @@ export function FeaturedArtistProfile({ copy }: { copy: PublicPageCopy["artistDe
     return () => {
       active = false;
     };
-  }, [copy.unavailable, id]);
+  }, [copy.unavailable, id, initialArtist]);
 
   return (
     <section className="mx-auto w-full max-w-6xl px-5 pb-20 pt-32 sm:px-8" aria-label="Artist profile">

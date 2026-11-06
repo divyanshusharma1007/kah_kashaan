@@ -4,6 +4,16 @@ import { RegistrationForm } from "@/components/home/registration-form";
 import { SiteLayout } from "@/components/home/site-layout";
 import { getHomePageData } from "@/data/home-page-data";
 import { getPublicEventData } from "@/data/public-event-data";
+import { createPageMetadata } from "@/lib/seo";
+
+export const metadata = {
+  ...createPageMetadata(
+    "Reserve Your Place at a Kah-Kashaan Event",
+    "Reserve a place at an upcoming Kah-Kashaan poetry, music, workshop, or cultural event.",
+    "/reserve",
+  ),
+  robots: { index: false, follow: true },
+};
 
 export default async function ReservePage({
   searchParams,

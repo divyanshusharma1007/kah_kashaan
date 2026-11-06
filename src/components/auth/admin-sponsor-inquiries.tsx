@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchWhenIdle } from "@/lib/client-idle-fetch";
 import type { ManagedSponsorInquiry } from "@/services/sponsor-inquiries";
 
 function isInquiry(value: unknown): value is ManagedSponsorInquiry {
@@ -23,7 +24,7 @@ export function AdminSponsorInquiries() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/sponsor-inquiries", { cache: "no-store" })
+    fetchWhenIdle("/api/sponsor-inquiries", { cache: "no-store" })
       .then(async (response) => {
         let result: unknown;
         try {

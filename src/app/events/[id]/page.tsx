@@ -7,10 +7,22 @@ import { getHomePageData } from "@/data/home-page-data";
 import { getPublicEventSponsors, getPublishedEvent, getUpcomingPublishedEvent, isValidEventId } from "@/services/events";
 import { getArtistSkillsByIds } from "@/services/artist-skills";
 import { listEventFeedback } from "@/services/event-feedback";
+import { cleanDescription, createPageMetadata, absoluteUrl } from "@/lib/seo";
 
 type EventDetailsPageProps = {
   params: Promise<{ id: string }>;
 };
+
+export async function generateMetadata({ params }: EventDetailsPageProps) {
+  const { id } = await params;
+  const event = await getPublishedEvent(id);
+  return createPageMetadata(
+    event ? `${event.title} | Kah-Kashaan Events` : "Kah-Kashaan Event",
+    cleanDescription(event?.description ?? "Discover a Kah-Kashaan literary and cultural event."),
+    `/events/${encodeURIComponent(id)}`,
+    event?.posterUrl,
+  );
+}
 
 export default async function EventDetailsPage({ params }: EventDetailsPageProps) {
   await connection();
@@ -38,9 +50,35 @@ export default async function EventDetailsPage({ params }: EventDetailsPageProps
   const price = event.price === 0
     ? copy.freeEntryLabel
     : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(event.price);
+  const eventStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: event.title,
+    description: event.description,
+    url: absoluteUrl(`/events/${event.id}`),
+    startDate: event.startsAt,
+    endDate: event.dates.at(-1) ?? event.startsAt,
+    eventStatus: "https://schema.org/EventScheduled",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    location: {
+      "@type": "Place",
+      name: event.location,
+      address: event.city || event.location,
+    },
+    organizer: { "@type": "Organization", name: event.organizer || "Kah-Kashaan", url: absoluteUrl("/") },
+    ...(event.posterUrl ? { image: [event.posterUrl] } : {}),
+    offers: {
+      "@type": "Offer",
+      price: event.price,
+      priceCurrency: "INR",
+      url: absoluteUrl(`/events/${event.id}`),
+      availability: isUpcoming ? "https://schema.org/InStock" : "https://schema.org/SoldOut",
+    },
+  };
 
   return (
     <SiteLayout navItems={navItems} logo={logo} content={heroContent}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(eventStructuredData) }} />
       <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <article className="rounded-[2rem] border border-[#d9af57]/20 bg-[#111111] p-6 sm:p-10">
           {event.posterUrl.trim() && (

@@ -8,6 +8,8 @@ import type { ManagedSponsor } from "@/services/sponsors";
 import { getEventLifecycleStatus } from "@/lib/event-lifecycle";
 import Image from "next/image";
 import type { EventFeedback } from "@/services/event-feedback";
+import { SharePublicPageButton } from "@/components/auth/share-public-page-button";
+import { fetchWhenIdle } from "@/lib/client-idle-fetch";
 
 type EventOverview = {
   event: ManagedEvent;
@@ -136,7 +138,7 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
   }
 
   useEffect(() => {
-    fetch(`/api/admin/events/${encodeURIComponent(eventId)}/feedback`, { cache: "no-store" })
+    fetchWhenIdle(`/api/admin/events/${encodeURIComponent(eventId)}/feedback`, { cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result || !Array.isArray(result.feedback)) throw new Error(errorMessage(result, "Could not load event feedback."));
@@ -273,7 +275,7 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
                   </label>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
-                  {galleryUrls.map((url, index) => <Image alt={`${overview.event.title} event photo ${index + 1}`} className="aspect-square rounded-lg object-cover" height={120} key={url} src={url} unoptimized width={120} />)}
+                  {galleryUrls.map((url, index) => <Image alt={`${overview.event.title} event photo ${index + 1}`} className="aspect-square rounded-lg object-cover" height={120} key={url} loading="lazy" src={url} unoptimized width={120} />)}
                 </div>
               </section>
               <section className="mt-6 rounded-2xl border border-white/[0.07] bg-[#10100f] p-5" aria-labelledby="event-feedback-admin-heading">
@@ -338,6 +340,9 @@ export function AdminEventOverview({ eventId }: { eventId: string }) {
                 <p className="text-[10px] uppercase tracking-[0.16em] text-[#a79a7d]">Fee per registration</p>
                 <p className="mt-2 font-[var(--font-display)] text-3xl text-[#f0e6ce]">{formatPrice(overview.event.price)}</p>
               </div>
+              {overview.event.status === "published" && (
+                <SharePublicPageButton path={`/events/${encodeURIComponent(overview.event.id)}`} />
+              )}
             </div>
             {overview.event.skillIds.length > 0 && (
               <div className="mt-5">

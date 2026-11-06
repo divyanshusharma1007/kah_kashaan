@@ -10,3 +10,9 @@ export default async function VerifyEmailPage({
   if (token) verificationUrl.searchParams.set("token", token);
   redirect(`${verificationUrl.pathname}${verificationUrl.search}`);
 }
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Verify your email",
+  robots: { index: false, follow: false },
+};
