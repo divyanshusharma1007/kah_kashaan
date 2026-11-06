@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { AboutSection } from "@/components/home/about-section";
 import { CommunitySection } from "@/components/home/community-section";
+import { IndoreLiterarySection } from "@/components/home/indore-literary-section";
 import { EventsSection } from "@/components/home/events-section";
 import { FeaturedArtists } from "@/components/artists/featured-artists";
 import { HeroSection } from "@/components/home/hero-section";
@@ -59,6 +60,7 @@ export default async function Home() {
       <EventsSection upcomingEvents={upcomingEvents} completedEvents={completedWithFeedback.slice(0, 5)} showAllCompletedEventsLink={completedWithFeedback.length > 5} copy={content.publicPages.eventsPage} />
       <FeaturedArtists preview content={content.featuredArtists} copy={content.publicPages.artistsPage} />
       <CommunitySection metrics={content.community.metrics ?? communityMetrics} eyebrow={content.community.eyebrow} heading={content.community.heading} description={content.community.description} />
+      <IndoreLiterarySection />
       <SponsorsSection
         sponsors={websiteSponsors ?? []}
         content={content.sponsors}
